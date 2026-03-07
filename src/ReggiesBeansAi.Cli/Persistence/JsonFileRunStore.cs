@@ -18,18 +18,29 @@ public sealed class JsonFileRunStore : IRunStore
     {
         _runsDirectory = runsDirectory;
         Directory.CreateDirectory(runsDirectory);
+        CleanUpStaleTempFiles();
     }
 
     public async Task SaveAsync(WorkflowRun run, CancellationToken cancellationToken)
     {
         var finalPath = RunPath(run.RunId);
-        var tempPath = finalPath + ".tmp";
+        // Unique temp name per write — no conflict if a prior write for this run was interrupted
+        var tempPath = Path.Combine(_runsDirectory, $"{run.RunId}.{Path.GetRandomFileName()}.tmp");
 
         var json = JsonSerializer.Serialize(run, JsonOptions);
         await File.WriteAllTextAsync(tempPath, json, cancellationToken);
 
         // Atomic replace: prevents partial writes on crash
         File.Move(tempPath, finalPath, overwrite: true);
+    }
+
+    private void CleanUpStaleTempFiles()
+    {
+        foreach (var file in Directory.GetFiles(_runsDirectory, "*.tmp"))
+        {
+            try { File.Delete(file); }
+            catch { /* best effort — don't fail startup over a leftover temp file */ }
+        }
     }
 
     public async Task<WorkflowRun?> LoadAsync(string runId, CancellationToken cancellationToken)
