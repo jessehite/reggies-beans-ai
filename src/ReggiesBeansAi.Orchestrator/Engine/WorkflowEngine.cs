@@ -70,6 +70,50 @@ public sealed class WorkflowEngine : IWorkflowEngine
         return await ExecuteFromCurrentStage(workflow, run, humanInputJson, cancellationToken, isResuming: true);
     }
 
+    public async Task<WorkflowRun> RetryAsync(
+        WorkflowDefinition workflow,
+        string runId,
+        CancellationToken cancellationToken)
+    {
+        var run = await _runStore.LoadAsync(runId, cancellationToken);
+
+        if (run is null)
+            throw new InvalidOperationException($"Workflow run '{runId}' not found.");
+
+        if (run.Status != WorkflowStatus.Failed)
+            throw new InvalidOperationException(
+                $"Cannot retry workflow run '{runId}' with status '{run.Status}'. Expected '{WorkflowStatus.Failed}'.");
+
+        if (run.WorkflowId != workflow.Id)
+            throw new InvalidOperationException(
+                $"Workflow run '{runId}' belongs to workflow '{run.WorkflowId}', not '{workflow.Id}'.");
+
+        // Reset the failed stage and all subsequent stages back to Pending
+        for (int i = run.CurrentStageIndex; i < run.Stages.Count; i++)
+        {
+            var stage = run.Stages[i];
+            stage.Status = StageStatus.Pending;
+            stage.Error = null;
+            stage.OutputJson = null;
+            stage.StartedAt = null;
+            stage.CompletedAt = null;
+            stage.AttemptCount = 0;
+        }
+
+        var inputJson = run.Stages[run.CurrentStageIndex].InputJson!;
+        run.Stages[run.CurrentStageIndex].InputJson = null;
+
+        run.Status = WorkflowStatus.Running;
+        run.CompletedAt = null;
+
+        _logger.LogInformation("Workflow run {RunId} retrying from stage {StageId}",
+            run.RunId, workflow.Stages[run.CurrentStageIndex].Id);
+
+        await _runStore.SaveAsync(run, cancellationToken);
+
+        return await ExecuteFromCurrentStage(workflow, run, inputJson, cancellationToken);
+    }
+
     private async Task<WorkflowRun> ExecuteFromCurrentStage(
         WorkflowDefinition workflow,
         WorkflowRun run,

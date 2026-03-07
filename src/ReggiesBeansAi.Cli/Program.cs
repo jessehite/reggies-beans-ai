@@ -59,17 +59,30 @@ var logger = loggerFactory.CreateLogger<WorkflowEngine>();
 
 var engine = new WorkflowEngine(runStore, handlers, logger);
 var workflow = ProductDevelopmentWorkflow.Create();
-var discoveryPrompt = PromptForDiscovery(args);
 
-Console.WriteLine($"Starting Product Development pipeline — discovering trends for: {discoveryPrompt.AreaOfInterest}");
-Console.WriteLine();
+WorkflowRun run;
 
-var initialInput = JsonSerializer.Serialize(discoveryPrompt, new JsonSerializerOptions
+var resumeRunId = args.Length == 2 && args[0] == "--resume" ? args[1] : null;
+if (resumeRunId is not null)
 {
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-});
+    Console.WriteLine($"Resuming run {resumeRunId} from failed stage...");
+    Console.WriteLine();
+    run = await engine.RetryAsync(workflow, resumeRunId, CancellationToken.None);
+}
+else
+{
+    var discoveryPrompt = PromptForDiscovery(args);
 
-var run = await engine.StartAsync(workflow, initialInput, CancellationToken.None);
+    Console.WriteLine($"Starting Product Development pipeline — discovering trends for: {discoveryPrompt.AreaOfInterest}");
+    Console.WriteLine();
+
+    var initialInput = JsonSerializer.Serialize(discoveryPrompt, new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    });
+
+    run = await engine.StartAsync(workflow, initialInput, CancellationToken.None);
+}
 
 // Resume through human gates: opportunity selection (Step 01) and final review (Step 14)
 while (run.Status == WorkflowStatus.WaitingForInput)

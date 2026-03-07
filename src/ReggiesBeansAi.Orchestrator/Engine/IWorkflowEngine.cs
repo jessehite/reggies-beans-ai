@@ -14,4 +14,9 @@ public interface IWorkflowEngine
         string runId,
         string humanInputJson,
         CancellationToken cancellationToken);
+
+    Task<WorkflowRun> RetryAsync(
+        WorkflowDefinition workflow,
+        string runId,
+        CancellationToken cancellationToken);
 }
