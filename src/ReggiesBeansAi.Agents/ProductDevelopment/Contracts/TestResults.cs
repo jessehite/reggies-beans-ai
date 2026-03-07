@@ -1,6 +1,7 @@
 namespace ReggiesBeansAi.Agents.ProductDevelopment.Contracts;
 
 public sealed record TestResults(
+    GeneratedFile[] SourceFiles,
     TestFileResult[] Files,
     string CoverageReport,
     string[] IdentifiedIssues,
