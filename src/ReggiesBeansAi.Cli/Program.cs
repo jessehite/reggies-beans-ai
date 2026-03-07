@@ -26,10 +26,10 @@ if (string.IsNullOrWhiteSpace(googleKey))
     return 1;
 }
 
-using var httpClient = new HttpClient();
+using var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
 var claudeClient = new ClaudeLlmClient(httpClient, anthropicKey);
 
-var geminiModel = Environment.GetEnvironmentVariable("GEMINI_MODEL") ?? "gemini-3.1-pro";
+var geminiModel = Environment.GetEnvironmentVariable("GEMINI_MODEL") ?? "gemini-2.5-flash";
 var geminiClient = new GeminiLlmClient(new HttpClient(), googleKey, geminiModel);
 
 var handlers = new Dictionary<string, IStageHandler>
