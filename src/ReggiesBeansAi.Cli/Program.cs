@@ -26,6 +26,18 @@ var useFeatureAnalysis = args.Length > 0 && args[0].Equals("feature", StringComp
 
 using var httpClient = new HttpClient();
 var llmClient = new ClaudeLlmClient(httpClient, apiKey);
+
+// Gemini client for market analysis (grounded Google Search)
+var googleApiKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+if (!useFeatureAnalysis && string.IsNullOrWhiteSpace(googleApiKey))
+{
+    Console.Error.WriteLine("Error: GOOGLE_API_KEY environment variable is not set. Required for market analysis (Step 03).");
+    return 1;
+}
+
+var geminiModel = Environment.GetEnvironmentVariable("GEMINI_MODEL") ?? "gemini-3.1-pro";
+var geminiClient = new GeminiLlmClient(new HttpClient(), googleApiKey!, geminiModel);
+
 var runStore = new JsonFileRunStore("runs");
 
 using var loggerFactory = LoggerFactory.Create(builder =>
@@ -76,7 +88,7 @@ else
     {
         ["idea-generation"]   = new IdeaGenerationHandler(llmClient),
         ["idea-evaluation"]   = new IdeaEvaluationHandler(llmClient),
-        ["market-analysis"]   = new MarketAnalysisHandler(llmClient),
+        ["market-analysis"]   = new MarketAnalysisHandler(geminiClient),
         ["tech-feasibility"]  = new TechFeasibilityHandler(llmClient),
         ["go-no-go"]          = new GoNoGoHandler(llmClient),
         ["product-planning"]  = new ProductPlanningHandler(llmClient),
