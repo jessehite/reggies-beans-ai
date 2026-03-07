@@ -10,6 +10,8 @@ using ReggiesBeansAi.Orchestrator.Engine;
 using ReggiesBeansAi.Orchestrator.Handlers;
 using ReggiesBeansAi.Orchestrator.Model;
 
+LoadDotEnv();
+
 var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
 if (string.IsNullOrWhiteSpace(apiKey))
 {
@@ -64,6 +66,31 @@ if (run.Status == WorkflowStatus.WaitingForInput)
 PrintSummary(run);
 
 return run.Status == WorkflowStatus.Completed ? 0 : 1;
+
+static void LoadDotEnv()
+{
+    var dir = Directory.GetCurrentDirectory();
+    while (dir is not null)
+    {
+        var path = Path.Combine(dir, ".env");
+        if (File.Exists(path))
+        {
+            foreach (var line in File.ReadAllLines(path))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+                var eq = trimmed.IndexOf('=');
+                if (eq < 1) continue;
+                var key = trimmed[..eq].Trim();
+                var value = trimmed[(eq + 1)..].Trim();
+                if (!string.IsNullOrEmpty(key) && Environment.GetEnvironmentVariable(key) is null)
+                    Environment.SetEnvironmentVariable(key, value);
+            }
+            break;
+        }
+        dir = Directory.GetParent(dir)?.FullName;
+    }
+}
 
 static string PromptForDescription()
 {

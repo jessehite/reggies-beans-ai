@@ -7,6 +7,7 @@ public abstract class StageHandler<TInput, TOutput> : IStageHandler
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
         WriteIndented = false
     };
 
