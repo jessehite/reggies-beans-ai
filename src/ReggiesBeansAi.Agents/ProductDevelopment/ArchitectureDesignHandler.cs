@@ -74,7 +74,8 @@ public sealed class ArchitectureDesignHandler : StageHandler<ProductRequirements
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Design the technical architecture for this product based on the PRD below:\n\n{prdJson}",
-            Model: "claude-opus-4-6");
+            Model: "claude-opus-4-6",
+            MaxTokens: 16000);
 
         LlmResponse response;
         try

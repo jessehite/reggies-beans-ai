@@ -72,7 +72,8 @@ public sealed class ProductPlanningHandler : StageHandler<GoNoGoDecision, Produc
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Generate a PRD for the top 'build' idea from this Go/No-Go report:\n\n{decisionJson}",
-            Model: "claude-opus-4-6");
+            Model: "claude-opus-4-6",
+            MaxTokens: 16000);
 
         LlmResponse response;
         try

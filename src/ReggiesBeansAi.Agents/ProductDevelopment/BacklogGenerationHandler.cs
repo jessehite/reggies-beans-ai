@@ -70,7 +70,8 @@ public sealed class BacklogGenerationHandler : StageHandler<ArchitectureDocument
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Generate a prioritized product backlog and sprint plan from this architecture document:\n\n{architectureJson}",
-            Model: "claude-sonnet-4-6");
+            Model: "claude-sonnet-4-6",
+            MaxTokens: 16000);
 
         LlmResponse response;
         try

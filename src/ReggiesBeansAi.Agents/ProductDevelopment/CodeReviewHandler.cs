@@ -72,7 +72,7 @@ public sealed class CodeReviewHandler : StageHandler<TestResults, CodeReviewRepo
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Perform a code review on the following source code and test results:\n\n{reviewJson}",
             Model: "claude-opus-4-6",
-            MaxTokens: 8192);
+            MaxTokens: 16000);
 
         LlmResponse response;
         try
