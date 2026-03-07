@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Workflow run artifacts
+runs/
+
 # User-specific files
 *.rsuser
 *.suo
