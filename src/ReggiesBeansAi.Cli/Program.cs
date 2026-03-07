@@ -1,7 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using ReggiesBeansAi.Agents.FeatureAnalysis;
-using ReggiesBeansAi.Agents.FeatureAnalysis.Contracts;
 using ReggiesBeansAi.Agents.Llm;
 using ReggiesBeansAi.Agents.ProductDevelopment;
 using ReggiesBeansAi.Agents.ProductDevelopment.Contracts;
@@ -14,29 +12,42 @@ using ReggiesBeansAi.Orchestrator.Model;
 
 LoadDotEnv();
 
-var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-if (string.IsNullOrWhiteSpace(apiKey))
+var anthropicKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+if (string.IsNullOrWhiteSpace(anthropicKey))
 {
     Console.Error.WriteLine("Error: ANTHROPIC_API_KEY environment variable is not set.");
     return 1;
 }
 
-// Select workflow: first arg "feature" runs feature analysis; default is product development
-var useFeatureAnalysis = args.Length > 0 && args[0].Equals("feature", StringComparison.OrdinalIgnoreCase);
-
-using var httpClient = new HttpClient();
-var llmClient = new ClaudeLlmClient(httpClient, apiKey);
-
-// Gemini client for market analysis (grounded Google Search)
-var googleApiKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
-if (!useFeatureAnalysis && string.IsNullOrWhiteSpace(googleApiKey))
+var googleKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+if (string.IsNullOrWhiteSpace(googleKey))
 {
     Console.Error.WriteLine("Error: GOOGLE_API_KEY environment variable is not set. Required for market analysis (Step 03).");
     return 1;
 }
 
+using var httpClient = new HttpClient();
+var claudeClient = new ClaudeLlmClient(httpClient, anthropicKey);
+
 var geminiModel = Environment.GetEnvironmentVariable("GEMINI_MODEL") ?? "gemini-3.1-pro";
-var geminiClient = new GeminiLlmClient(new HttpClient(), googleApiKey!, geminiModel);
+var geminiClient = new GeminiLlmClient(new HttpClient(), googleKey, geminiModel);
+
+var handlers = new Dictionary<string, IStageHandler>
+{
+    ["idea-generation"]     = new IdeaGenerationHandler(claudeClient),
+    ["idea-evaluation"]     = new IdeaEvaluationHandler(claudeClient),
+    ["market-analysis"]     = new MarketAnalysisHandler(geminiClient),
+    ["tech-feasibility"]    = new TechFeasibilityHandler(claudeClient),
+    ["go-no-go"]            = new GoNoGoHandler(claudeClient),
+    ["product-planning"]    = new ProductPlanningHandler(claudeClient),
+    ["architecture-design"] = new ArchitectureDesignHandler(claudeClient),
+    ["backlog-generation"]  = new BacklogGenerationHandler(claudeClient),
+    ["code-generation"]     = new CodeGenerationHandler(claudeClient),
+    ["automated-testing"]   = new AutomatedTestingHandler(claudeClient),
+    ["code-review"]         = new CodeReviewHandler(claudeClient),
+    ["deployment-prep"]     = new DeploymentPrepHandler(claudeClient),
+    ["human-review"]        = new HumanReviewHandler()
+};
 
 var runStore = new JsonFileRunStore("runs");
 
@@ -44,84 +55,25 @@ using var loggerFactory = LoggerFactory.Create(builder =>
     builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 var logger = loggerFactory.CreateLogger<WorkflowEngine>();
 
-var engine = new WorkflowEngine(runStore, new Dictionary<string, IStageHandler>(), logger);
+var engine = new WorkflowEngine(runStore, handlers, logger);
+var workflow = ProductDevelopmentWorkflow.Create();
+var ideationInput = PromptForIdeationInput(args);
 
-WorkflowRun run;
+Console.WriteLine($"Starting Product Development pipeline for domain: {ideationInput.Domain}");
+Console.WriteLine();
 
-if (useFeatureAnalysis)
+var initialInput = JsonSerializer.Serialize(ideationInput, new JsonSerializerOptions
 {
-    var description = args.Length > 1
-        ? string.Join(" ", args[1..])
-        : PromptFor("Feature description");
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+});
 
-    if (string.IsNullOrWhiteSpace(description))
-    {
-        Console.Error.WriteLine("Error: feature description is required.");
-        return 1;
-    }
+var run = await engine.StartAsync(workflow, initialInput, CancellationToken.None);
 
-    var handlers = new Dictionary<string, IStageHandler>
-    {
-        ["analyze-requirements"] = new AnalyzeRequirementsHandler(llmClient),
-        ["generate-plan"]        = new GeneratePlanHandler(llmClient),
-        ["human-review"]         = new ConsoleApprovalHandler()
-    };
-
-    var workflow = FeatureAnalysisWorkflow.Create();
-    engine = new WorkflowEngine(runStore, handlers, logger);
-
-    Console.WriteLine($"Starting Feature Analysis for: {description}");
-    Console.WriteLine();
-
-    var initialInput = JsonSerializer.Serialize(new FeatureRequest(description));
-    run = await engine.StartAsync(workflow, initialInput, CancellationToken.None);
-
-    if (run.Status == WorkflowStatus.WaitingForInput)
-    {
-        var staged = run.Stages[run.CurrentStageIndex].InputJson!;
-        run = await engine.ResumeAsync(workflow, run.RunId, staged, CancellationToken.None);
-    }
-}
-else
+// Human review gate at Step 13: HumanReviewHandler does its own console I/O
+if (run.Status == WorkflowStatus.WaitingForInput)
 {
-    var handlers = new Dictionary<string, IStageHandler>
-    {
-        ["idea-generation"]   = new IdeaGenerationHandler(llmClient),
-        ["idea-evaluation"]   = new IdeaEvaluationHandler(llmClient),
-        ["market-analysis"]   = new MarketAnalysisHandler(geminiClient),
-        ["tech-feasibility"]  = new TechFeasibilityHandler(llmClient),
-        ["go-no-go"]          = new GoNoGoHandler(llmClient),
-        ["product-planning"]  = new ProductPlanningHandler(llmClient),
-        ["architecture-design"] = new ArchitectureDesignHandler(llmClient),
-        ["backlog-generation"]  = new BacklogGenerationHandler(llmClient),
-        ["code-generation"]   = new CodeGenerationHandler(llmClient),
-        ["automated-testing"] = new AutomatedTestingHandler(llmClient),
-        ["code-review"]       = new CodeReviewHandler(llmClient),
-        ["deployment-prep"]   = new DeploymentPrepHandler(llmClient),
-        ["human-review"]      = new HumanReviewHandler()
-    };
-
-    var workflow = ProductDevelopmentWorkflow.Create();
-    engine = new WorkflowEngine(runStore, handlers, logger);
-
-    var ideationInput = PromptForIdeationInput(args);
-
-    Console.WriteLine($"Starting Product Development pipeline for domain: {ideationInput.Domain}");
-    Console.WriteLine();
-
-    var initialInput = JsonSerializer.Serialize(ideationInput, new JsonSerializerOptions
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    });
-
-    run = await engine.StartAsync(workflow, initialInput, CancellationToken.None);
-
-    // Human review gate at Step 13: HumanReviewHandler does its own console I/O
-    if (run.Status == WorkflowStatus.WaitingForInput)
-    {
-        var staged = run.Stages[run.CurrentStageIndex].InputJson!;
-        run = await engine.ResumeAsync(workflow, run.RunId, staged, CancellationToken.None);
-    }
+    var staged = run.Stages[run.CurrentStageIndex].InputJson!;
+    run = await engine.ResumeAsync(workflow, run.RunId, staged, CancellationToken.None);
 }
 
 PrintSummary(run);
@@ -153,12 +105,6 @@ static void LoadDotEnv()
     }
 }
 
-static string PromptFor(string label)
-{
-    Console.Write($"{label}: ");
-    return Console.ReadLine() ?? string.Empty;
-}
-
 static IdeationInput PromptForIdeationInput(string[] args)
 {
     // Accept a JSON string as the first arg for scripted use
@@ -178,8 +124,11 @@ static IdeationInput PromptForIdeationInput(string[] args)
     Console.WriteLine("Product Development Pipeline — Enter ideation parameters:");
     Console.WriteLine();
 
-    var domain = PromptFor("Domain/industry (e.g. developer tools, healthcare, fintech)");
-    var audience = PromptFor("Target audience");
+    Console.Write("Domain/industry (e.g. developer tools, healthcare, fintech): ");
+    var domain = Console.ReadLine() ?? string.Empty;
+
+    Console.Write("Target audience: ");
+    var audience = Console.ReadLine() ?? string.Empty;
 
     Console.Write("Seed themes (comma-separated, or leave blank): ");
     var themesInput = Console.ReadLine() ?? string.Empty;
