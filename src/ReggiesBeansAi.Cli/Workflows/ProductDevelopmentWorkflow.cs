@@ -8,6 +8,15 @@ public static class ProductDevelopmentWorkflow
     public static WorkflowDefinition Create()
     {
         return new WorkflowDefinitionBuilder("product-development", "Product Development")
+            .AddStage<DiscoveryPrompt, DiscoveredOpportunities>(
+                id: "trend-discovery",
+                name: "Trend Discovery",
+                maxAttempts: 3,
+                retryDelaySeconds: 5)
+            .AddStage<DiscoveredOpportunities, IdeationInput>(
+                id: "opportunity-selection",
+                name: "Opportunity Selection",
+                requiresHumanInput: true)
             .AddStage<IdeationInput, IdeaBatch>(
                 id: "idea-generation",
                 name: "Idea Generation",

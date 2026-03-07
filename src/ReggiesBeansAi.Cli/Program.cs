@@ -22,7 +22,7 @@ if (string.IsNullOrWhiteSpace(anthropicKey))
 var googleKey = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
 if (string.IsNullOrWhiteSpace(googleKey))
 {
-    Console.Error.WriteLine("Error: GOOGLE_API_KEY environment variable is not set. Required for market analysis (Step 03).");
+    Console.Error.WriteLine("Error: GOOGLE_API_KEY environment variable is not set. Required for trend discovery and market analysis.");
     return 1;
 }
 
@@ -34,6 +34,8 @@ var geminiClient = new GeminiLlmClient(new HttpClient(), googleKey, geminiModel)
 
 var handlers = new Dictionary<string, IStageHandler>
 {
+    ["trend-discovery"]     = new TrendDiscoveryHandler(geminiClient),
+    ["opportunity-selection"] = new OpportunitySelectionHandler(),
     ["idea-generation"]     = new IdeaGenerationHandler(claudeClient),
     ["idea-evaluation"]     = new IdeaEvaluationHandler(claudeClient),
     ["market-analysis"]     = new MarketAnalysisHandler(geminiClient),
@@ -57,20 +59,20 @@ var logger = loggerFactory.CreateLogger<WorkflowEngine>();
 
 var engine = new WorkflowEngine(runStore, handlers, logger);
 var workflow = ProductDevelopmentWorkflow.Create();
-var ideationInput = PromptForIdeationInput(args);
+var discoveryPrompt = PromptForDiscovery(args);
 
-Console.WriteLine($"Starting Product Development pipeline for domain: {ideationInput.Domain}");
+Console.WriteLine($"Starting Product Development pipeline — discovering trends for: {discoveryPrompt.AreaOfInterest}");
 Console.WriteLine();
 
-var initialInput = JsonSerializer.Serialize(ideationInput, new JsonSerializerOptions
+var initialInput = JsonSerializer.Serialize(discoveryPrompt, new JsonSerializerOptions
 {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
 });
 
 var run = await engine.StartAsync(workflow, initialInput, CancellationToken.None);
 
-// Human review gate at Step 13: HumanReviewHandler does its own console I/O
-if (run.Status == WorkflowStatus.WaitingForInput)
+// Resume through human gates: opportunity selection (Step 01) and final review (Step 14)
+while (run.Status == WorkflowStatus.WaitingForInput)
 {
     var staged = run.Stages[run.CurrentStageIndex].InputJson!;
     run = await engine.ResumeAsync(workflow, run.RunId, staged, CancellationToken.None);
@@ -105,42 +107,29 @@ static void LoadDotEnv()
     }
 }
 
-static IdeationInput PromptForIdeationInput(string[] args)
+static DiscoveryPrompt PromptForDiscovery(string[] args)
 {
-    // Accept a JSON string as the first arg for scripted use
-    if (args.Length > 0 && args[0].TrimStart().StartsWith('{'))
+    // Accept area of interest as CLI args
+    if (args.Length > 0)
     {
-        try
-        {
-            var parsed = JsonSerializer.Deserialize<IdeationInput>(args[0], new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-            if (parsed is not null) return parsed;
-        }
-        catch { /* fall through to interactive prompts */ }
+        return new DiscoveryPrompt(
+            string.Join(" ", args),
+            Array.Empty<string>());
     }
 
-    Console.WriteLine("Product Development Pipeline — Enter ideation parameters:");
+    Console.WriteLine("Product Development Pipeline — Trend Discovery");
     Console.WriteLine();
 
-    Console.Write("Domain/industry (e.g. developer tools, healthcare, fintech): ");
-    var domain = Console.ReadLine() ?? string.Empty;
+    Console.Write("Area of interest (e.g. developer tools, healthcare, fintech, .NET): ");
+    var area = Console.ReadLine() ?? string.Empty;
 
-    Console.Write("Target audience: ");
-    var audience = Console.ReadLine() ?? string.Empty;
-
-    Console.Write("Seed themes (comma-separated, or leave blank): ");
-    var themesInput = Console.ReadLine() ?? string.Empty;
-    var themes = themesInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    Console.Write("Previously rejected ideas to avoid (comma-separated, or leave blank): ");
-    var rejectedInput = Console.ReadLine() ?? string.Empty;
-    var rejected = rejectedInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    Console.Write("Signal sources to prioritize (comma-separated, or leave blank for defaults): ");
+    var sourcesInput = Console.ReadLine() ?? string.Empty;
+    var sources = sourcesInput.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     Console.WriteLine();
 
-    return new IdeationInput(domain, audience, themes, rejected);
+    return new DiscoveryPrompt(area, sources);
 }
 
 static void PrintSummary(WorkflowRun run)
