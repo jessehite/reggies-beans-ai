@@ -67,7 +67,7 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Write and simulate xUnit tests for the following generated code package:\n\n{packageJson}",
             Model: "claude-sonnet-4-6",
-            MaxTokens: 16000);
+            MaxTokens: 32000);
 
         LlmResponse response;
         try

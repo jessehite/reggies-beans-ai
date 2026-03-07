@@ -59,7 +59,7 @@ public sealed class DeploymentPrepHandler : StageHandler<CodeReviewReport, Deplo
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Generate deployment artifacts for an application that passed code review with the following report:\n\n{reportJson}",
             Model: "claude-sonnet-4-6",
-            MaxTokens: 16000);
+            MaxTokens: 32000);
 
         LlmResponse response;
         try

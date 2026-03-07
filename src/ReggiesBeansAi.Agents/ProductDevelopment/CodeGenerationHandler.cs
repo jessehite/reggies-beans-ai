@@ -73,7 +73,7 @@ public sealed class CodeGenerationHandler : StageHandler<ProductBacklog, Generat
             SystemPrompt: SystemPrompt,
             UserPrompt: $"Generate C# source code for the following Sprint 1 backlog:\n\n{backlogJson}",
             Model: "claude-sonnet-4-6",
-            MaxTokens: 16000);
+            MaxTokens: 32000);
 
         LlmResponse response;
         try
