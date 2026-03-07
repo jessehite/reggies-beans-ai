@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReggiesBeansAi.Orchestrator\ReggiesBeansAi.Orchestrator.csproj" />
+    <ProjectReference Include="..\ReggiesBeansAi.Agents\ReggiesBeansAi.Agents.csproj" />
+  </ItemGroup>
+
+</Project>
