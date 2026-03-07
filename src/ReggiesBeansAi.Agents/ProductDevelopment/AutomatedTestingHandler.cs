@@ -19,13 +19,6 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
 
         Return ONLY valid JSON with this exact structure — no explanation, no markdown, no code fences:
         {
-          "sourceFiles": [
-            {
-              "path": "exact path from the input code package",
-              "content": "exact content from the input code package",
-              "fileType": "cs"
-            }
-          ],
           "files": [
             {
               "filePath": "tests/ProjectName.Tests/Folder/ClassNameTests.cs",
@@ -40,7 +33,7 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
           "qualityAssessment": "overall assessment of test quality, coverage, and any gaps in testing"
         }
 
-        The sourceFiles array must contain all files from the input code package unchanged. Generate one test file per non-trivial source file. If any simulated tests fail, include realistic failure messages.
+        Generate one test file per non-trivial source file. If any simulated tests fail, include realistic failure messages.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -85,6 +78,9 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
             var results = JsonSerializer.Deserialize<TestResults>(json, JsonOptions);
             if (results is null)
                 return HandleResult<TestResults>.Failed("LLM returned null test results.");
+
+            // Attach source files from the code package so CodeReviewHandler can access them
+            results = results with { SourceFiles = input.Files };
 
             return HandleResult<TestResults>.Succeeded(results);
         }
