@@ -41,7 +41,7 @@ var handlers = new Dictionary<string, IStageHandler>
 var runStore = new JsonFileRunStore("runs");
 
 using var loggerFactory = LoggerFactory.Create(builder =>
-    builder.AddConsole().SetMinimumLevel(LogLevel.Information));
+    builder.AddConsole().SetMinimumLevel(LogLevel.Warning));
 var logger = loggerFactory.CreateLogger<WorkflowEngine>();
 
 var engine = new WorkflowEngine(runStore, handlers, logger);

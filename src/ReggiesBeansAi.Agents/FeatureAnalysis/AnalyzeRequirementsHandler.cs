@@ -8,17 +8,19 @@ namespace ReggiesBeansAi.Agents.FeatureAnalysis;
 public sealed class AnalyzeRequirementsHandler : StageHandler<FeatureRequest, RequirementsDocument>
 {
     private const string SystemPrompt = """
-        You are a software requirements analyst. Analyze the given feature request and return a structured requirements document.
+        You are a software requirements analyst. A developer has submitted a feature request describing something they want added to their software application.
+
+        Your job is to read their description and extract structured requirements from it. You are NOT building anything — you are analyzing what they asked for.
 
         Return ONLY valid JSON with this exact structure — no explanation, no markdown, no code fences:
         {
-          "summary": "one-sentence summary of the feature",
-          "goals": ["goal 1", "goal 2"],
-          "constraints": ["constraint 1"],
-          "acceptanceCriteria": ["criterion 1", "criterion 2"]
+          "summary": "one-sentence summary of what the developer wants",
+          "goals": ["what this feature should achieve"],
+          "constraints": ["technical or UX constraints implied by the request"],
+          "acceptanceCriteria": ["specific, testable conditions that must be true when the feature is done"]
         }
 
-        Be concrete and specific. Extract real goals and constraints from the description.
+        Base everything strictly on what the developer described. Do not invent requirements they did not mention.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -40,7 +42,7 @@ public sealed class AnalyzeRequirementsHandler : StageHandler<FeatureRequest, Re
     {
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
-            UserPrompt: $"Analyze this feature request:\n\n{input.Description}");
+            UserPrompt: $"A developer submitted this feature request for their application:\n\n{input.Description}");
 
         LlmResponse response;
         try

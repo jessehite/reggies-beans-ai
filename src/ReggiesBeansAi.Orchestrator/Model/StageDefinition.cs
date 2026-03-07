@@ -7,5 +7,6 @@ public sealed class StageDefinition
     public required Type InputType { get; init; }
     public required Type OutputType { get; init; }
     public int MaxAttempts { get; init; } = 1;
+    public int RetryDelaySeconds { get; init; } = 0;
     public bool RequiresHumanInput { get; init; }
 }

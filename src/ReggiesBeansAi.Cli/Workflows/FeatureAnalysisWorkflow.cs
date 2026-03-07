@@ -11,11 +11,13 @@ public static class FeatureAnalysisWorkflow
             .AddStage<FeatureRequest, RequirementsDocument>(
                 id: "analyze-requirements",
                 name: "Analyze Requirements",
-                maxAttempts: 3)
+                maxAttempts: 3,
+                retryDelaySeconds: 5)
             .AddStage<RequirementsDocument, ImplementationPlan>(
                 id: "generate-plan",
                 name: "Generate Plan",
-                maxAttempts: 3)
+                maxAttempts: 3,
+                retryDelaySeconds: 5)
             .AddStage<ImplementationPlan, ApprovalDecision>(
                 id: "human-review",
                 name: "Human Review",

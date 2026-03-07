@@ -16,6 +16,7 @@ public sealed class WorkflowDefinitionBuilder
         string id,
         string name,
         int maxAttempts = 1,
+        int retryDelaySeconds = 0,
         bool requiresHumanInput = false)
     {
         _stages.Add(new StageDefinition
@@ -25,6 +26,7 @@ public sealed class WorkflowDefinitionBuilder
             InputType = typeof(TInput),
             OutputType = typeof(TOutput),
             MaxAttempts = maxAttempts,
+            RetryDelaySeconds = retryDelaySeconds,
             RequiresHumanInput = requiresHumanInput
         });
 

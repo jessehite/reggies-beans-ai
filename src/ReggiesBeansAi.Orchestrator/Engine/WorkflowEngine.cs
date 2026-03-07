@@ -143,10 +143,11 @@ public sealed class WorkflowEngine : IWorkflowEngine
                 if (attempt < stageDef.MaxAttempts)
                 {
                     _logger.LogWarning(
-                        "Stage {StageId} failed (attempt {Attempt}/{MaxAttempts}), retrying: {Error}",
-                        stageDef.Id, attempt, stageDef.MaxAttempts, result.Error);
+                        "Stage {StageId} failed (attempt {Attempt}/{MaxAttempts}), retrying in {DelaySeconds}s: {Error}",
+                        stageDef.Id, attempt, stageDef.MaxAttempts, stageDef.RetryDelaySeconds, result.Error);
 
                     await _runStore.SaveAsync(run, cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(stageDef.RetryDelaySeconds), cancellationToken);
                 }
             }
 

@@ -8,17 +8,19 @@ namespace ReggiesBeansAi.Agents.FeatureAnalysis;
 public sealed class GeneratePlanHandler : StageHandler<RequirementsDocument, ImplementationPlan>
 {
     private const string SystemPrompt = """
-        You are a software architect. Create a concrete implementation plan from the given requirements document.
+        You are a software architect. A developer wants to implement a feature in their application. You have been given a structured requirements document describing what they want.
+
+        Your job is to produce a concrete implementation plan for that feature. You are NOT designing a new system — you are planning how to implement the described feature inside their existing application.
 
         Return ONLY valid JSON with this exact structure — no explanation, no markdown, no code fences:
         {
-          "approach": "high-level description of the implementation approach",
+          "approach": "high-level description of how to implement this specific feature",
           "tasks": [
             {"name": "task name", "description": "what needs to be done and why"}
           ]
         }
 
-        Include 3-7 concrete, actionable tasks. Order them by implementation sequence.
+        Include 3-7 concrete, actionable tasks ordered by implementation sequence. Focus on the feature described — do not plan unrelated infrastructure.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -42,7 +44,7 @@ public sealed class GeneratePlanHandler : StageHandler<RequirementsDocument, Imp
 
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
-            UserPrompt: $"Create an implementation plan for these requirements:\n\n{requirementsJson}");
+            UserPrompt: $"Create an implementation plan for this feature based on the requirements below:\n\n{requirementsJson}");
 
         LlmResponse response;
         try
