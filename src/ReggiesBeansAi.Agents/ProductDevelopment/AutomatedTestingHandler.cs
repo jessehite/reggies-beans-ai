@@ -5,7 +5,7 @@ using ReggiesBeansAi.Orchestrator.Handlers;
 
 namespace ReggiesBeansAi.Agents.ProductDevelopment;
 
-public sealed class AutomatedTestingHandler : StageHandler<GeneratedFrontendPackage, TestResults>
+public sealed class AutomatedTestingHandler : StageHandler<FullStackPackage, TestResults>
 {
     private const string SystemPrompt = """
         You are a senior engineer performing automated testing across a full-stack application. Given the generated .NET backend source code, write comprehensive xUnit tests using FluentAssertions and simulate running them.
@@ -50,7 +50,7 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedFrontendPack
     }
 
     protected override async Task<HandleResult<TestResults>> HandleAsync(
-        GeneratedFrontendPackage input,
+        FullStackPackage input,
         StageContext context,
         CancellationToken cancellationToken)
     {

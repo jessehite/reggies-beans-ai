@@ -72,10 +72,23 @@ public static class WebProductDevelopmentWorkflow
                 name: "Frontend Generation",
                 maxAttempts: 3,
                 retryDelaySeconds: 5)
-            .AddStage<GeneratedFrontendPackage, GeneratedFrontendPackage>(
+            .AddStage<GeneratedFrontendPackage, FullStackPackage>(
+                id: "infrastructure-generation",
+                name: "Infrastructure Generation",
+                maxAttempts: 3,
+                retryDelaySeconds: 5)
+            .AddStage<FullStackPackage, FullStackPackage>(
                 id: "full-stack-review",
                 name: "Full-Stack Review")
-            .AddStage<GeneratedFrontendPackage, TestResults>(
+            .AddStage<FullStackPackage, FullStackPackage>(
+                id: "local-environment-startup",
+                name: "Local Environment Startup",
+                maxAttempts: 2,
+                retryDelaySeconds: 5)
+            .AddStage<FullStackPackage, FullStackPackage>(
+                id: "local-testing-gate",
+                name: "Local Testing Gate")
+            .AddStage<FullStackPackage, TestResults>(
                 id: "automated-testing",
                 name: "Automated Testing",
                 maxAttempts: 3,
