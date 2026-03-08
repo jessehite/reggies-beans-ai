@@ -19,4 +19,10 @@ public interface IWorkflowEngine
         WorkflowDefinition workflow,
         string runId,
         CancellationToken cancellationToken);
+
+    Task<WorkflowRun> RetryFromStageAsync(
+        WorkflowDefinition workflow,
+        string runId,
+        int stageIndex,
+        CancellationToken cancellationToken);
 }

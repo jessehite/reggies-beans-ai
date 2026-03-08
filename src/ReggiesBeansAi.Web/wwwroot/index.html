@@ -58,6 +58,12 @@ header span { font-size: 13px; color: #666; }
 .btn-danger { background: #ef4444; color: #fff; }
 .btn-neutral { background: #374151; color: #e0e0e0; }
 .btn-warning { background: #f59e0b; color: #000; }
+.btn-retry {
+  font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #4b5563;
+  background: transparent; color: #9ca3af; cursor: pointer; line-height: 1.6;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn-retry:hover { background: #374151; color: #f3f4f6; border-color: #6b7280; }
 
 /* Forms */
 .form-group { margin-bottom: 14px; }
@@ -314,11 +320,21 @@ function renderStageRow(stage, index, run) {
     summaryHtml = `<div class="stage-summary" style="color:#60a5fa;">Running… checking in via SSE.</div>`;
   }
 
+  const canRetry = stage.inputJson &&
+    ['completed', 'failed', 'skipped'].includes(stage.status?.toLowerCase());
+  const retryBtn = canRetry
+    ? `<button class="btn-retry" title="Retry from this stage (clears all subsequent stages)"
+         onclick="retryFromStage('${run.runId}', ${index})">↺ Retry</button>`
+    : '';
+
   return `
     <div class="stage-row ${statusClass}">
       <div class="stage-icon">${icon}</div>
       <div class="stage-body">
-        <div class="stage-name">${workflowDef?.stages[index]?.name ?? stage.stageId}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="stage-name">${workflowDef?.stages[index]?.name ?? stage.stageId}</div>
+          ${retryBtn}
+        </div>
         <div class="stage-id">${stage.stageId}</div>
         ${meta ? `<div class="stage-meta">${meta}</div>` : ''}
         ${summaryHtml}
@@ -507,6 +523,15 @@ function disconnectSse() {
 async function continueRun(runId, inputJson) {
   await api(`/api/runs/${runId}/continue`, 'POST', { inputJson });
   // Re-render immediately with updated state (SSE will keep updating)
+  await sleep(300);
+  const run = await api(`/api/runs/${runId}`);
+  if (run && currentRunId === runId) renderRun(run);
+}
+
+async function retryFromStage(runId, stageIndex) {
+  const stageName = workflowDef?.stages[stageIndex]?.name ?? `stage ${stageIndex}`;
+  if (!confirm(`Retry from "${stageName}"?\n\nThis will clear all subsequent stages and re-run the pipeline from this point.`)) return;
+  await api(`/api/runs/${runId}/retry/${stageIndex}`, 'POST');
   await sleep(300);
   const run = await api(`/api/runs/${runId}`);
   if (run && currentRunId === runId) renderRun(run);

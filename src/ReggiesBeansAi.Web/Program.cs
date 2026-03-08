@@ -156,6 +156,21 @@ app.MapPost("/api/runs/{id}/retry", async (string id, WorkflowEngine engine, IRu
     return Results.Accepted();
 });
 
+// ── POST /api/runs/{id}/retry/{stageIndex} ─────────────────────────────────
+app.MapPost("/api/runs/{id}/retry/{stageIndex:int}", async (string id, int stageIndex, WorkflowEngine engine, IRunStore store) =>
+{
+    var run = await store.LoadAsync(id, CancellationToken.None);
+    if (run is null) return Results.NotFound();
+
+    _ = Task.Run(async () =>
+    {
+        try { await engine.RetryFromStageAsync(workflow, id, stageIndex, CancellationToken.None); }
+        catch (Exception ex) { app.Logger.LogError(ex, "RetryFromStageAsync failed for run {RunId} stage {StageIndex}", id, stageIndex); }
+    });
+
+    return Results.Accepted();
+});
+
 // ── GET /api/runs/{id}/events ──────────────────────────────────────────────
 // Server-Sent Events: streams JSON events as the engine progresses.
 // Event types: stage-starting, stage-completed, stage-failed, run-paused, run-completed, run-failed

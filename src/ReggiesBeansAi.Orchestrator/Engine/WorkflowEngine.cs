@@ -123,6 +123,55 @@ public sealed class WorkflowEngine : IWorkflowEngine
         return await ExecuteFromCurrentStage(workflow, run, inputJson, cancellationToken);
     }
 
+    public async Task<WorkflowRun> RetryFromStageAsync(
+        WorkflowDefinition workflow,
+        string runId,
+        int stageIndex,
+        CancellationToken cancellationToken)
+    {
+        var run = await _runStore.LoadAsync(runId, cancellationToken);
+
+        if (run is null)
+            throw new InvalidOperationException($"Workflow run '{runId}' not found.");
+
+        if (run.WorkflowId != workflow.Id)
+            throw new InvalidOperationException(
+                $"Workflow run '{runId}' belongs to workflow '{run.WorkflowId}', not '{workflow.Id}'.");
+
+        if (stageIndex < 0 || stageIndex >= run.Stages.Count)
+            throw new ArgumentOutOfRangeException(nameof(stageIndex),
+                $"Stage index {stageIndex} is out of range for run '{runId}'.");
+
+        var inputJson = run.Stages[stageIndex].InputJson;
+        if (inputJson is null)
+            throw new InvalidOperationException(
+                $"Stage {stageIndex} has no stored InputJson and cannot be retried.");
+
+        // Reset the target stage and all subsequent stages back to Pending
+        for (int i = stageIndex; i < run.Stages.Count; i++)
+        {
+            var stage = run.Stages[i];
+            stage.Status = StageStatus.Pending;
+            stage.Error = null;
+            stage.OutputJson = null;
+            stage.StartedAt = null;
+            stage.CompletedAt = null;
+            stage.AttemptCount = 0;
+            if (i > stageIndex) stage.InputJson = null;
+        }
+
+        run.CurrentStageIndex = stageIndex;
+        run.Status = WorkflowStatus.Running;
+        run.CompletedAt = null;
+
+        _logger.LogInformation("Workflow run {RunId} retrying from stage {StageId} (index {StageIndex})",
+            run.RunId, workflow.Stages[stageIndex].Id, stageIndex);
+
+        await _runStore.SaveAsync(run, cancellationToken);
+
+        return await ExecuteFromCurrentStage(workflow, run, inputJson, cancellationToken);
+    }
+
     private async Task<WorkflowRun> ExecuteFromCurrentStage(
         WorkflowDefinition workflow,
         WorkflowRun run,
