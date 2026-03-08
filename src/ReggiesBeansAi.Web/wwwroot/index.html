@@ -76,6 +76,21 @@ header span { font-size: 13px; color: #666; }
 .new-run-panel { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; margin-bottom: 24px; }
 .new-run-panel h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
 
+/* Stage detail cards */
+.detail-section { margin-bottom: 16px; }
+.detail-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-bottom: 8px; }
+.detail-card { background: #111; border: 1px solid #2a2a2a; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+.detail-card-title { font-size: 13px; font-weight: 600; color: #e5e7eb; margin-bottom: 4px; }
+.detail-card-meta { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+.detail-card-body { font-size: 12px; color: #9ca3af; line-height: 1.5; }
+.detail-tag { display: inline-block; background: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 2px 7px; font-size: 11px; color: #94a3b8; margin: 2px 2px 0 0; }
+.detail-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.detail-badge.go { background: #064e3b; color: #34d399; }
+.detail-badge.nogo { background: #450a0a; color: #f87171; }
+.detail-badge.neutral { background: #1e293b; color: #94a3b8; }
+.detail-collapse-toggle { font-size: 12px; color: #3b82f6; cursor: pointer; user-select: none; margin-top: 8px; display: inline-block; }
+.detail-collapsed { display: none; }
+
 /* Opportunity cards */
 .opportunity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; }
 .opportunity-card { background: #111; border: 2px solid #2a2a2a; border-radius: 6px; padding: 12px; cursor: pointer; transition: border-color 0.15s; user-select: none; }
@@ -322,24 +337,25 @@ function renderActionPanel(run) {
     return renderHumanReviewPanel(run, inputJson);
   }
 
-  // All other stages: review-only, just show Continue
+  // All other stages: show previous stage results + Continue
   const prevStageIndex = stageIndex - 1;
   const prevStage = prevStageIndex >= 0 ? run.stages[prevStageIndex] : null;
   const prevStageName = prevStage ? (workflowDef?.stages[prevStageIndex]?.name ?? prevStage.stageId) : '';
+  const detailHtml = prevStage?.outputJson ? getStageDetail(prevStage.stageId, prevStage.outputJson) : '';
 
   return `
     <div class="action-panel">
-      <h3>Review: ${prevStageName || stageName}</h3>
-      <p style="font-size:13px;color:#9ca3af;margin-bottom:16px;">
-        ${prevStage ? `<strong>${prevStageName}</strong> completed.` : ''}
-        Ready to run <strong>${stageName}</strong>.
-      </p>
-      <button class="btn btn-success" onclick="continueRun('${run.runId}', null)">
-        Continue to ${stageName} →
-      </button>
-      <button class="btn btn-neutral" style="margin-left:8px;" onclick="showRunList()">
-        Stop for now
-      </button>
+      <h3>✅ ${escHtml(prevStageName || stageName)} — Results</h3>
+      ${detailHtml}
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #2a2a2a;">
+        <p style="font-size:13px;color:#9ca3af;margin-bottom:12px;">Ready to run <strong>${escHtml(stageName)}</strong>.</p>
+        <button class="btn btn-success" onclick="continueRun('${run.runId}', null)">
+          Continue to ${escHtml(stageName)} →
+        </button>
+        <button class="btn btn-neutral" style="margin-left:8px;" onclick="showRunList()">
+          Stop for now
+        </button>
+      </div>
     </div>`;
 }
 
@@ -502,6 +518,284 @@ async function retryRun(runId) {
 function toggleJson(id) {
   const el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Stage detail (rich view shown in action panel) ────────────────────────
+let _detailCollapseCounter = 0;
+function getStageDetail(stageId, outputJsonStr) {
+  try {
+    const o = JSON.parse(outputJsonStr);
+    switch (stageId) {
+
+      case 'trend-discovery': {
+        const trends = o.trends ?? [];
+        const opps = o.opportunities ?? [];
+        const trendCards = trends.map(t => `
+          <div class="detail-card">
+            <div class="detail-card-title">${escHtml(t.source ?? 'Unknown Source')}</div>
+            <div class="detail-card-body">${escHtml(t.description ?? '')}</div>
+            ${t.relevance ? `<div class="detail-card-body" style="margin-top:6px;color:#6b7280"><em>${escHtml(t.relevance)}</em></div>` : ''}
+          </div>`).join('');
+        const oppCards = opps.map(p => `
+          <div class="detail-card">
+            <div class="detail-card-title">${escHtml(p.domain ?? '?')}</div>
+            <div class="detail-card-meta">Audience: ${escHtml(p.targetAudience ?? '—')}</div>
+            <div class="detail-card-body">${escHtml(p.rationale ?? '')}</div>
+            ${(p.suggestedThemes ?? []).map(t => `<span class="detail-tag">${escHtml(t)}</span>`).join('')}
+          </div>`).join('');
+        const id1 = `dc-${_detailCollapseCounter++}`, id2 = `dc-${_detailCollapseCounter++}`;
+        return `
+          <div class="detail-section">
+            <div class="detail-section-title">${trends.length} Market Trends</div>
+            <div id="${id1}" class="detail-collapsed">${trendCards}</div>
+            <span class="detail-collapse-toggle" onclick="toggleDetailSection('${id1}', this)">▶ Show trends</span>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">${opps.length} Opportunities Identified</div>
+            ${oppCards}
+          </div>`;
+      }
+
+      case 'idea-generation': {
+        const ideas = o.ideas ?? [];
+        const cards = ideas.map(i => `
+          <div class="detail-card">
+            <div class="detail-card-title">${escHtml(i.title ?? '?')}</div>
+            <div class="detail-card-meta">Persona: ${escHtml(i.targetPersona ?? '—')}</div>
+            <div class="detail-card-body">${escHtml(i.valueProposition ?? i.description ?? '')}</div>
+            ${(i.tags ?? []).map(t => `<span class="detail-tag">${escHtml(t)}</span>`).join('')}
+          </div>`).join('');
+        return `<div class="detail-section"><div class="detail-section-title">${ideas.length} Ideas Generated</div>${cards}</div>`;
+      }
+
+      case 'idea-evaluation': {
+        const ideas = (o.ideas ?? []).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+        const cards = ideas.map(i => `
+          <div class="detail-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <div class="detail-card-title" style="margin-bottom:0">#${i.rank ?? '?'} — ${escHtml(i.title ?? '?')}</div>
+              <span class="detail-badge neutral">Score: ${i.compositeScore ?? '?'}</span>
+            </div>
+            <div class="detail-card-body">${escHtml(i.rationale ?? i.summary ?? '')}</div>
+            ${i.strengths?.length ? `<div class="detail-card-body" style="margin-top:6px;color:#34d399">✓ ${escHtml(i.strengths.slice(0,2).join(' · '))}</div>` : ''}
+            ${i.weaknesses?.length ? `<div class="detail-card-body" style="color:#f87171">✗ ${escHtml(i.weaknesses.slice(0,2).join(' · '))}</div>` : ''}
+          </div>`).join('');
+        return `<div class="detail-section"><div class="detail-section-title">Ranked Ideas</div>${cards}</div>`;
+      }
+
+      case 'market-analysis': {
+        const analyses = o.analyses ?? [];
+        const cards = analyses.map(a => `
+          <div class="detail-card">
+            <div class="detail-card-title">${escHtml(a.ideaTitle ?? '?')}</div>
+            <div class="detail-card-meta">TAM: ${escHtml(a.tamEstimate ?? '?')} · SAM: ${escHtml(a.samEstimate ?? '?')} · SOM: ${escHtml(a.somEstimate ?? '?')}</div>
+            <div class="detail-card-body">${escHtml(a.recommendation ?? '')}</div>
+            ${a.marketGaps?.length ? `<div class="detail-card-body" style="margin-top:6px"><strong>Gaps:</strong> ${escHtml(a.marketGaps.slice(0,3).join('; '))}</div>` : ''}
+            ${a.competitors?.length ? `<div class="detail-card-body"><strong>Competitors:</strong> ${escHtml(a.competitors.slice(0,4).join(', '))}</div>` : ''}
+          </div>`).join('');
+        return `<div class="detail-section"><div class="detail-section-title">Market Analysis</div>${cards}</div>`;
+      }
+
+      case 'tech-feasibility': {
+        const assessments = o.assessments ?? [];
+        const cards = assessments.map(a => `
+          <div class="detail-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <div class="detail-card-title" style="margin-bottom:0">${escHtml(a.ideaTitle ?? '?')}</div>
+              <span class="detail-badge neutral">Complexity ${a.complexityRating ?? '?'}/10</span>
+            </div>
+            <div class="detail-card-meta">Effort: ${escHtml(a.estimatedEffort ?? '?')}</div>
+            ${a.techStackRecommendations?.length ? `<div class="detail-card-body"><strong>Stack:</strong> ${escHtml(a.techStackRecommendations.slice(0,5).join(', '))}</div>` : ''}
+            ${a.keyRisks?.length ? `<div class="detail-card-body" style="margin-top:6px;color:#fbbf24"><strong>Risks:</strong> ${escHtml(a.keyRisks.slice(0,3).join('; '))}</div>` : ''}
+          </div>`).join('');
+        return `<div class="detail-section"><div class="detail-section-title">Feasibility Assessments</div>${cards}</div>`;
+      }
+
+      case 'go-no-go': {
+        const decisions = o.decisions ?? [];
+        const summary = o.executiveSummary ?? '';
+        const cards = decisions.map(d => {
+          const rec = (d.recommendation ?? '').toLowerCase();
+          const badgeClass = rec === 'go' ? 'go' : rec === 'no-go' || rec === 'nogo' ? 'nogo' : 'neutral';
+          return `
+          <div class="detail-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div class="detail-card-title" style="margin-bottom:0">${escHtml(d.ideaTitle ?? '?')}</div>
+              <span class="detail-badge ${badgeClass}">${escHtml((d.recommendation ?? '?').toUpperCase())}</span>
+            </div>
+            <div class="detail-card-body">${escHtml(d.rationale ?? '')}</div>
+          </div>`;
+        }).join('');
+        return `
+          ${summary ? `<div class="detail-section"><div class="detail-section-title">Executive Summary</div><div class="detail-card"><div class="detail-card-body">${escHtml(summary)}</div></div></div>` : ''}
+          <div class="detail-section"><div class="detail-section-title">Decisions</div>${cards}</div>`;
+      }
+
+      case 'product-planning': {
+        const name = o.productName ?? o.name ?? 'Product';
+        const vision = o.productVision ?? o.vision ?? '';
+        const features = o.mvpFeatures ?? o.coreFeatures ?? o.features ?? [];
+        const userStories = o.userStories ?? [];
+        const id1 = `dc-${_detailCollapseCounter++}`;
+        return `
+          <div class="detail-section">
+            <div class="detail-card">
+              <div class="detail-card-title" style="font-size:15px">${escHtml(name)}</div>
+              ${vision ? `<div class="detail-card-body" style="margin-top:6px">${escHtml(vision)}</div>` : ''}
+            </div>
+          </div>
+          ${features.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">${features.length} MVP Features</div>
+            ${features.map(f => `<div class="detail-card"><div class="detail-card-title">${escHtml(f.name ?? f.title ?? f)}</div>${f.description ? `<div class="detail-card-body">${escHtml(f.description)}</div>` : ''}</div>`).join('')}
+          </div>` : ''}
+          ${userStories.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">${userStories.length} User Stories</div>
+            <div id="${id1}" class="detail-collapsed">${userStories.map(s => `<div class="detail-card"><div class="detail-card-body">${escHtml(s.story ?? s)}</div></div>`).join('')}</div>
+            <span class="detail-collapse-toggle" onclick="toggleDetailSection('${id1}', this)">▶ Show user stories</span>
+          </div>` : ''}`;
+      }
+
+      case 'architecture-design': {
+        const style = o.architectureStyle ?? o.pattern ?? '';
+        const overview = o.overview ?? o.description ?? '';
+        const comps = o.components ?? o.services ?? o.layers ?? [];
+        const techStack = o.techStack ?? o.technologies ?? [];
+        return `
+          <div class="detail-section">
+            <div class="detail-card">
+              ${style ? `<div class="detail-card-title">${escHtml(style)}</div>` : ''}
+              ${overview ? `<div class="detail-card-body">${escHtml(overview)}</div>` : ''}
+            </div>
+          </div>
+          ${comps.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">${comps.length} Components</div>
+            ${comps.map(c => `<div class="detail-card"><div class="detail-card-title">${escHtml(c.name ?? c.title ?? c)}</div>${c.description ? `<div class="detail-card-body">${escHtml(c.description)}</div>` : ''}</div>`).join('')}
+          </div>` : ''}
+          ${techStack.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">Tech Stack</div>
+            <div class="detail-card"><div class="detail-card-body">${techStack.map(t => `<span class="detail-tag">${escHtml(t.name ?? t)}</span>`).join('')}</div></div>
+          </div>` : ''}`;
+      }
+
+      case 'backlog-generation': {
+        const epics = o.epics ?? [];
+        const sprints = o.sprints ?? o.sprintPlan ?? [];
+        const totalPoints = sprints.reduce((n, s) => n + (s.totalPoints ?? 0), 0);
+        const id1 = `dc-${_detailCollapseCounter++}`;
+        return `
+          <div class="detail-section">
+            <div class="detail-card">
+              <div class="detail-card-body">
+                <strong>${epics.length}</strong> epics · <strong>${sprints.length}</strong> sprints · <strong>${totalPoints}</strong> story points total
+              </div>
+            </div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">${epics.length} Epics</div>
+            ${epics.map(e => `<div class="detail-card"><div class="detail-card-title">${escHtml(e.title ?? e.name ?? e)}</div>${e.description ? `<div class="detail-card-body">${escHtml(e.description)}</div>` : ''}</div>`).join('')}
+          </div>
+          ${sprints.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">Sprint Plan</div>
+            <div id="${id1}" class="detail-collapsed">
+              ${sprints.map(s => `<div class="detail-card">
+                <div class="detail-card-title">Sprint ${s.sprintNumber ?? ''} — ${s.totalPoints ?? 0} points</div>
+                <div class="detail-card-body">${(s.storyTitles ?? []).map(t => `• ${escHtml(t)}`).join('<br>')}</div>
+              </div>`).join('')}
+            </div>
+            <span class="detail-collapse-toggle" onclick="toggleDetailSection('${id1}', this)">▶ Show sprint plan</span>
+          </div>` : ''}`;
+      }
+
+      case 'code-generation':
+      case 'frontend-generation': {
+        const files = o.generatedFiles ?? o.frontendFiles ?? o.files ?? [];
+        const id1 = `dc-${_detailCollapseCounter++}`;
+        const fileList = files.map(f => `<div class="detail-card">
+          <div class="detail-card-title" style="font-family:monospace;font-size:12px">${escHtml(f.path ?? f.fileName ?? f.name ?? f)}</div>
+          ${f.description ? `<div class="detail-card-body">${escHtml(f.description)}</div>` : ''}
+        </div>`).join('');
+        return `
+          <div class="detail-section">
+            <div class="detail-card"><div class="detail-card-body"><strong>${files.length}</strong> files generated</div></div>
+          </div>
+          <div class="detail-section">
+            <div id="${id1}" class="detail-collapsed">${fileList}</div>
+            <span class="detail-collapse-toggle" onclick="toggleDetailSection('${id1}', this)">▶ Show file list</span>
+          </div>`;
+      }
+
+      case 'automated-testing': {
+        const files = o.files ?? [];
+        const pass = files.reduce((n, f) => n + (f.passCount ?? 0), 0);
+        const fail = files.reduce((n, f) => n + (f.failCount ?? 0), 0);
+        const issues = o.identifiedIssues ?? [];
+        return `
+          <div class="detail-section">
+            <div class="detail-card">
+              <div class="detail-card-body">
+                Tests passed: <strong style="color:#34d399">${pass}</strong> · Failed: <strong style="color:#f87171">${fail}</strong>
+              </div>
+              ${o.qualityAssessment ? `<div class="detail-card-body" style="margin-top:8px">${escHtml(o.qualityAssessment)}</div>` : ''}
+            </div>
+          </div>
+          ${issues.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">${issues.length} Identified Issues</div>
+            ${issues.map(i => `<div class="detail-card"><div class="detail-card-body">${escHtml(typeof i === 'string' ? i : i.description ?? JSON.stringify(i))}</div></div>`).join('')}
+          </div>` : ''}`;
+      }
+
+      case 'code-review': {
+        const rating = o.overallRating ?? o.rating ?? '?';
+        const issues = o.issues ?? o.findings ?? o.comments ?? [];
+        const summary = o.summary ?? o.overallSummary ?? '';
+        return `
+          <div class="detail-section">
+            <div class="detail-card">
+              <div class="detail-card-body">Overall rating: <strong>${escHtml(String(rating))}</strong></div>
+              ${summary ? `<div class="detail-card-body" style="margin-top:8px">${escHtml(summary)}</div>` : ''}
+            </div>
+          </div>
+          ${issues.length ? `
+          <div class="detail-section">
+            <div class="detail-section-title">${issues.length} Review Items</div>
+            ${issues.map(i => `<div class="detail-card"><div class="detail-card-body">${escHtml(typeof i === 'string' ? i : i.comment ?? i.description ?? JSON.stringify(i))}</div></div>`).join('')}
+          </div>` : ''}`;
+      }
+
+      case 'deployment-prep': {
+        const files = o.deploymentFiles ?? o.files ?? o.artifacts ?? [];
+        const instructions = o.deploymentInstructions ?? o.instructions ?? '';
+        return `
+          <div class="detail-section">
+            <div class="detail-card">
+              <div class="detail-card-body"><strong>${files.length}</strong> deployment artifacts prepared</div>
+              ${instructions ? `<div class="detail-card-body" style="margin-top:8px">${escHtml(instructions)}</div>` : ''}
+            </div>
+          </div>`;
+      }
+
+      default:
+        return `<div class="detail-card"><div class="detail-card-body" style="color:#6b7280">Stage completed.</div></div>`;
+    }
+  } catch (e) {
+    return `<div class="detail-card"><div class="detail-card-body" style="color:#6b7280">Results available — view raw JSON below.</div></div>`;
+  }
+}
+
+function toggleDetailSection(id, toggleEl) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isHidden = el.style.display === 'none' || el.classList.contains('detail-collapsed');
+  el.style.display = isHidden ? 'block' : 'none';
+  el.classList.remove('detail-collapsed');
+  toggleEl.textContent = isHidden ? toggleEl.textContent.replace('▶', '▼').replace('Show', 'Hide')
+                                   : toggleEl.textContent.replace('▼', '▶').replace('Hide', 'Show');
 }
 
 // ── Stage summaries ───────────────────────────────────────────────────────
