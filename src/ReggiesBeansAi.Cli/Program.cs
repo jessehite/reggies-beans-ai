@@ -46,6 +46,7 @@ var handlers = new Dictionary<string, IStageHandler>
     ["backlog-generation"]  = new BacklogGenerationHandler(claudeClient),
     ["code-generation"]     = new CodeGenerationHandler(claudeClient),
     ["frontend-generation"] = new FrontendGenerationHandler(claudeClient),
+    ["full-stack-review"]   = new FullStackReviewHandler(),
     ["automated-testing"]   = new AutomatedTestingHandler(claudeClient),
     ["code-review"]         = new CodeReviewHandler(claudeClient),
     ["deployment-prep"]     = new DeploymentPrepHandler(claudeClient),

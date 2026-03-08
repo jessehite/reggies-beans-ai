@@ -67,6 +67,10 @@ public static class ProductDevelopmentWorkflow
                 name: "Frontend Generation",
                 maxAttempts: 3,
                 retryDelaySeconds: 5)
+            .AddStage<GeneratedFrontendPackage, GeneratedFrontendPackage>(
+                id: "full-stack-review",
+                name: "Full-Stack Review",
+                requiresHumanInput: true)
             .AddStage<GeneratedFrontendPackage, TestResults>(
                 id: "automated-testing",
                 name: "Automated Testing",
