@@ -21,26 +21,24 @@ public sealed class JsonFileRunStore : IRunStore
     {
         _runsDirectory = runsDirectory;
         Directory.CreateDirectory(runsDirectory);
-        CleanUpStaleTempFiles();
     }
 
     public async Task SaveAsync(WorkflowRun run, CancellationToken cancellationToken)
     {
-        var finalPath = RunPath(run.RunId);
-        var tempPath = Path.Combine(_runsDirectory, $"{run.RunId}.{Path.GetRandomFileName()}.tmp");
-
+        var path = RunPath(run.RunId);
         var json = JsonSerializer.Serialize(run, JsonOptions);
-        await File.WriteAllTextAsync(tempPath, json, cancellationToken);
-        File.Move(tempPath, finalPath, overwrite: true);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+
+        // Use FileShare.ReadWrite so concurrent GET requests don't cause sharing violations on Windows.
+        await using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        await fs.WriteAsync(bytes, cancellationToken);
     }
 
     public async Task<WorkflowRun?> LoadAsync(string runId, CancellationToken cancellationToken)
     {
         var path = RunPath(runId);
         if (!File.Exists(path)) return null;
-
-        var json = await File.ReadAllTextAsync(path, cancellationToken);
-        return JsonSerializer.Deserialize<WorkflowRun>(json, JsonOptions);
+        return await ReadRunAsync(path, cancellationToken);
     }
 
     public async Task<IReadOnlyList<WorkflowRun>> ListAsync(CancellationToken cancellationToken)
@@ -50,8 +48,7 @@ public sealed class JsonFileRunStore : IRunStore
 
         foreach (var file in files)
         {
-            var json = await File.ReadAllTextAsync(file, cancellationToken);
-            var run = JsonSerializer.Deserialize<WorkflowRun>(json, JsonOptions);
+            var run = await ReadRunAsync(file, cancellationToken);
             if (run is not null)
                 runs.Add(run);
         }
@@ -59,13 +56,12 @@ public sealed class JsonFileRunStore : IRunStore
         return runs.OrderByDescending(r => r.CreatedAt).ToList();
     }
 
-    private void CleanUpStaleTempFiles()
+    private static async Task<WorkflowRun?> ReadRunAsync(string path, CancellationToken cancellationToken)
     {
-        foreach (var file in Directory.GetFiles(_runsDirectory, "*.tmp"))
-        {
-            try { File.Delete(file); }
-            catch { /* best effort */ }
-        }
+        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(fs, System.Text.Encoding.UTF8);
+        var json = await reader.ReadToEndAsync(cancellationToken);
+        return JsonSerializer.Deserialize<WorkflowRun>(json, JsonOptions);
     }
 
     private string RunPath(string runId) => Path.Combine(_runsDirectory, $"{runId}.json");

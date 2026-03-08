@@ -108,7 +108,11 @@ app.MapPost("/api/runs/start", (StartRunRequest req, WorkflowEngine engine) =>
 
     // Fire-and-forget: engine saves the run record before executing any stage,
     // so GET /api/runs will surface the new run ID almost immediately.
-    _ = Task.Run(() => engine.StartAsync(workflow, initialJson, CancellationToken.None));
+    _ = Task.Run(async () =>
+    {
+        try { await engine.StartAsync(workflow, initialJson, CancellationToken.None); }
+        catch (Exception ex) { app.Logger.LogError(ex, "StartAsync failed"); }
+    });
 
     return Results.Accepted();
 });
@@ -126,7 +130,11 @@ app.MapPost("/api/runs/{id}/continue", async (string id, ContinueRequest? req, W
     // Use caller-supplied JSON, or fall back to what's already staged
     var inputJson = req?.InputJson ?? run.Stages[run.CurrentStageIndex].InputJson ?? "{}";
 
-    _ = Task.Run(() => engine.ResumeAsync(workflow, id, inputJson, CancellationToken.None));
+    _ = Task.Run(async () =>
+    {
+        try { await engine.ResumeAsync(workflow, id, inputJson, CancellationToken.None); }
+        catch (Exception ex) { app.Logger.LogError(ex, "ResumeAsync failed for run {RunId}", id); }
+    });
 
     return Results.Accepted();
 });
@@ -139,7 +147,11 @@ app.MapPost("/api/runs/{id}/retry", async (string id, WorkflowEngine engine, IRu
     if (run.Status != WorkflowStatus.Failed)
         return Results.BadRequest(new { error = $"Run is {run.Status}, not Failed" });
 
-    _ = Task.Run(() => engine.RetryAsync(workflow, id, CancellationToken.None));
+    _ = Task.Run(async () =>
+    {
+        try { await engine.RetryAsync(workflow, id, CancellationToken.None); }
+        catch (Exception ex) { app.Logger.LogError(ex, "RetryAsync failed for run {RunId}", id); }
+    });
 
     return Results.Accepted();
 });
