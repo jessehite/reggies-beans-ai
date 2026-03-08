@@ -45,6 +45,7 @@ var handlers = new Dictionary<string, IStageHandler>
     ["architecture-design"] = new ArchitectureDesignHandler(claudeClient),
     ["backlog-generation"]  = new BacklogGenerationHandler(claudeClient),
     ["code-generation"]     = new CodeGenerationHandler(claudeClient),
+    ["frontend-generation"] = new FrontendGenerationHandler(claudeClient),
     ["automated-testing"]   = new AutomatedTestingHandler(claudeClient),
     ["code-review"]         = new CodeReviewHandler(claudeClient),
     ["deployment-prep"]     = new DeploymentPrepHandler(claudeClient),

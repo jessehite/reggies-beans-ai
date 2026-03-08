@@ -62,7 +62,12 @@ public static class ProductDevelopmentWorkflow
                 name: "Code Generation",
                 maxAttempts: 3,
                 retryDelaySeconds: 5)
-            .AddStage<GeneratedCodePackage, TestResults>(
+            .AddStage<GeneratedCodePackage, GeneratedFrontendPackage>(
+                id: "frontend-generation",
+                name: "Frontend Generation",
+                maxAttempts: 3,
+                retryDelaySeconds: 5)
+            .AddStage<GeneratedFrontendPackage, TestResults>(
                 id: "automated-testing",
                 name: "Automated Testing",
                 maxAttempts: 3,

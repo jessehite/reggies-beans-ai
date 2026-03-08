@@ -5,10 +5,10 @@ using ReggiesBeansAi.Orchestrator.Handlers;
 
 namespace ReggiesBeansAi.Agents.ProductDevelopment;
 
-public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage, TestResults>
+public sealed class AutomatedTestingHandler : StageHandler<GeneratedFrontendPackage, TestResults>
 {
     private const string SystemPrompt = """
-        You are a senior .NET test engineer. Given the generated source code, write comprehensive xUnit tests using FluentAssertions. Then simulate running those tests and report realistic results.
+        You are a senior engineer performing automated testing across a full-stack application. Given the generated .NET backend source code, write comprehensive xUnit tests using FluentAssertions and simulate running them.
 
         Test conventions:
         - xUnit with FluentAssertions
@@ -33,7 +33,7 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
           "qualityAssessment": "overall assessment of test quality, coverage, and any gaps in testing"
         }
 
-        Generate one test file per non-trivial source file. If any simulated tests fail, include realistic failure messages.
+        Generate 5 to 8 test files covering the most important domain entities, application services, and API endpoints. If any simulated tests fail, include realistic failure messages.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -50,17 +50,18 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
     }
 
     protected override async Task<HandleResult<TestResults>> HandleAsync(
-        GeneratedCodePackage input,
+        GeneratedFrontendPackage input,
         StageContext context,
         CancellationToken cancellationToken)
     {
-        var packageJson = JsonSerializer.Serialize(input, JsonOptions);
+        var backendPackage = new { files = input.BackendFiles, solutionStructure = input.BackendStructure };
+        var packageJson = JsonSerializer.Serialize(backendPackage, JsonOptions);
 
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
-            UserPrompt: $"Write and simulate xUnit tests for the following generated code package:\n\n{packageJson}",
+            UserPrompt: $"Write and simulate xUnit tests for the following .NET backend code package:\n\n{packageJson}",
             Model: "claude-sonnet-4-6",
-            MaxTokens: 32000);
+            MaxTokens: 64000);
 
         LlmResponse response;
         try
@@ -79,8 +80,8 @@ public sealed class AutomatedTestingHandler : StageHandler<GeneratedCodePackage,
             if (results is null)
                 return HandleResult<TestResults>.Failed("LLM returned null test results.");
 
-            // Attach source files from the code package so CodeReviewHandler can access them
-            results = results with { SourceFiles = input.Files };
+            // Attach backend source files so CodeReviewHandler can access them
+            results = results with { SourceFiles = input.BackendFiles };
 
             return HandleResult<TestResults>.Succeeded(results);
         }
