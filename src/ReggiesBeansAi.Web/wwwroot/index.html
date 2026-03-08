@@ -321,7 +321,7 @@ function renderStageRow(stage, index, run) {
   }
 
   const canRetry = stage.inputJson &&
-    ['completed', 'failed', 'skipped'].includes(stage.status?.toLowerCase());
+    ['completed', 'failed', 'skipped', 'running'].includes(stage.status?.toLowerCase());
   const retryBtn = canRetry
     ? `<button class="btn-retry" title="Retry from this stage (clears all subsequent stages)"
          onclick="retryFromStage('${run.runId}', ${index})">↺ Retry</button>`

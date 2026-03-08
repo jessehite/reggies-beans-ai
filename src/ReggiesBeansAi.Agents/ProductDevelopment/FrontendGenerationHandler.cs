@@ -39,8 +39,24 @@ public sealed class FrontendGenerationHandler : StageHandler<GeneratedCodePackag
               "fileType": "tsx"
             }
           ],
-          "solutionStructure": "description of the app screen flow and how it connects to the backend"
+          "solutionStructure": "description of the app screen flow and how it connects to the backend",
+          "infraManifest": {
+            "projectFilePath": "src/ProjectName/ProjectName.csproj",
+            "databaseType": "sqlserver | postgres | sqlite | null",
+            "connectionStrings": ["DefaultConnection"],
+            "backendEnvVars": ["JWT_SECRET"],
+            "packageJsonPath": "frontend/package.json",
+            "frontendEnvVars": ["EXPO_PUBLIC_API_URL"]
+          }
         }
+
+        The infraManifest summarises what a DevOps engineer would need to Dockerise this app:
+        - projectFilePath: the .csproj path from the backend files
+        - databaseType: the database engine used (null if none)
+        - connectionStrings: names of connection strings from appsettings / DbContext
+        - backendEnvVars: any environment variables the backend needs beyond ASPNETCORE_*
+        - packageJsonPath: path to the frontend package.json
+        - frontendEnvVars: any EXPO_PUBLIC_* or other env vars the frontend needs
 
         Generate 10 to 14 files: config files, App.tsx, navigators, 3 to 4 screens, 2 to 3 shared components, API client, and types. Use realistic mock data where the real API isn't wired yet — mark with // TODO: replace with API call. Make the UI polished with proper loading states, error handling, and empty states.
         """;
@@ -94,15 +110,24 @@ public sealed class FrontendGenerationHandler : StageHandler<GeneratedCodePackag
         try
         {
             var json = LlmResponseParser.StripMarkdownFences(response.Content);
-            var frontendPackage = JsonSerializer.Deserialize<GeneratedCodePackage>(json, JsonOptions);
-            if (frontendPackage is null)
+            var llmResult = JsonSerializer.Deserialize<FrontendLlmResponse>(json, JsonOptions);
+            if (llmResult is null)
                 return HandleResult<GeneratedFrontendPackage>.Failed("LLM returned null frontend package.");
+
+            var manifest = llmResult.InfraManifest ?? new InfraManifest(
+                ProjectFilePath: "unknown",
+                DatabaseType: null,
+                ConnectionStrings: [],
+                BackendEnvVars: [],
+                PackageJsonPath: "package.json",
+                FrontendEnvVars: []);
 
             var result = new GeneratedFrontendPackage(
                 BackendFiles: input.Files,
-                FrontendFiles: frontendPackage.Files,
+                FrontendFiles: llmResult.Files,
                 BackendStructure: input.SolutionStructure,
-                FrontendStructure: frontendPackage.SolutionStructure);
+                FrontendStructure: llmResult.SolutionStructure,
+                InfraManifest: manifest);
 
             return HandleResult<GeneratedFrontendPackage>.Succeeded(result);
         }
@@ -112,4 +137,9 @@ public sealed class FrontendGenerationHandler : StageHandler<GeneratedCodePackag
                 $"Failed to parse LLM response as frontend package: {ex.Message}. Response was: {response.Content[..Math.Min(200, response.Content.Length)]}");
         }
     }
+
+    private sealed record FrontendLlmResponse(
+        GeneratedFile[] Files,
+        string SolutionStructure,
+        InfraManifest? InfraManifest);
 }

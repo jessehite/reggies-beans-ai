@@ -8,27 +8,25 @@ namespace ReggiesBeansAi.Agents.ProductDevelopment;
 public sealed class InfrastructureGenerationHandler : StageHandler<GeneratedFrontendPackage, FullStackPackage>
 {
     private const string SystemPrompt = """
-        You are a senior DevOps engineer. Given a full-stack application with a .NET 8 backend and a React Native / Expo frontend, generate all infrastructure files needed to run the app locally via Docker Compose.
+        You are a senior DevOps engineer. Given an infrastructure manifest describing a full-stack application (.NET 8 backend + React Native / Expo frontend), generate all infrastructure files needed to run the app locally via Docker Compose.
 
         Generate the following files:
         - backend/Dockerfile — multi-stage .NET 8 build; expose port 8080
         - frontend/Dockerfile — Node 20 image, runs `npx expo export --platform web` then serves with `npx serve dist`; expose port 8081
-        - docker-compose.yml — at the repo root; wires backend (port 8080) and frontend (port 8081) together; includes any required databases or other services derived from the code
+        - docker-compose.yml — at the repo root; wires backend (port 8080) and frontend (port 8081) together; includes any required databases or other services derived from the manifest
         - .env.template — all environment variables the app needs with placeholder values and comments
         - startup.ps1 — PowerShell script that runs `docker compose up -d --build` and prints the URLs
 
         Rules:
-        - Inspect the backend files to determine the correct project file name, startup class, and any required connection strings or env vars.
-        - Inspect the frontend files to determine the package.json location and any required EXPO_PUBLIC_* env vars.
-        - If the backend uses a SQL database, add a `db` service (mcr.microsoft.com/mssql/server:2022-latest) with a health check and make the backend depend_on it.
+        - Use the projectFilePath from the manifest to set the correct COPY and build paths in the backend Dockerfile.
+        - If databaseType is not null, add the appropriate database service (e.g. mcr.microsoft.com/mssql/server:2022-latest for sqlserver, postgres:16 for postgres) with a health check and make the backend depend_on it.
+        - Include all connectionStrings, backendEnvVars, and frontendEnvVars in the .env.template with placeholder values.
         - Set ASPNETCORE_URLS=http://+:8080 and ASPNETCORE_ENVIRONMENT=Development for the backend container.
         - Use named volumes for database data directories.
         - The docker-compose.yml must work on Windows Docker Desktop without any manual steps beyond `docker compose up`.
 
         Return ONLY valid JSON with this exact structure — no explanation, no markdown, no code fences:
         {
-          "backendFiles": [ { "path": "...", "content": "...", "fileType": "..." } ],
-          "frontendFiles": [ { "path": "...", "content": "...", "fileType": "..." } ],
           "infraFiles": [
             { "path": "backend/Dockerfile", "content": "...", "fileType": "dockerfile" },
             { "path": "frontend/Dockerfile", "content": "...", "fileType": "dockerfile" },
@@ -36,12 +34,8 @@ public sealed class InfrastructureGenerationHandler : StageHandler<GeneratedFron
             { "path": ".env.template", "content": "...", "fileType": "env" },
             { "path": "startup.ps1", "content": "...", "fileType": "ps1" }
           ],
-          "backendStructure": "copy from input unchanged",
-          "frontendStructure": "copy from input unchanged",
-          "dockerComposeOverview": "brief description of services, ports, and any dependencies (e.g. database)"
+          "dockerComposeOverview": "brief description of services, ports, and any dependencies"
         }
-
-        Pass backendFiles and frontendFiles through unchanged from the input. Only add new files to infraFiles.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -62,13 +56,20 @@ public sealed class InfrastructureGenerationHandler : StageHandler<GeneratedFron
         StageContext context,
         CancellationToken cancellationToken)
     {
-        var inputJson = JsonSerializer.Serialize(input, JsonOptions);
+        var manifestPayload = new
+        {
+            infraManifest = input.InfraManifest,
+            backendStructure = input.BackendStructure,
+            frontendStructure = input.FrontendStructure
+        };
+
+        var manifestJson = JsonSerializer.Serialize(manifestPayload, JsonOptions);
 
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
-            UserPrompt: $"Generate Docker Compose infrastructure for this full-stack application:\n\n{inputJson}",
+            UserPrompt: $"Generate Docker Compose infrastructure for this application:\n\n{manifestJson}",
             Model: "claude-sonnet-4-6",
-            MaxTokens: 32000);
+            MaxTokens: 16000);
 
         LlmResponse response;
         try
@@ -83,16 +84,28 @@ public sealed class InfrastructureGenerationHandler : StageHandler<GeneratedFron
         try
         {
             var json = LlmResponseParser.StripMarkdownFences(response.Content);
-            var package = JsonSerializer.Deserialize<FullStackPackage>(json, JsonOptions);
-            if (package is null)
-                return HandleResult<FullStackPackage>.Failed("LLM returned null infrastructure package.");
+            var llmResult = JsonSerializer.Deserialize<InfraLlmResponse>(json, JsonOptions);
+            if (llmResult is null)
+                return HandleResult<FullStackPackage>.Failed("LLM returned null infrastructure response.");
+
+            var package = new FullStackPackage(
+                BackendFiles: input.BackendFiles,
+                FrontendFiles: input.FrontendFiles,
+                InfraFiles: llmResult.InfraFiles,
+                BackendStructure: input.BackendStructure,
+                FrontendStructure: input.FrontendStructure,
+                DockerComposeOverview: llmResult.DockerComposeOverview);
 
             return HandleResult<FullStackPackage>.Succeeded(package);
         }
         catch (JsonException ex)
         {
             return HandleResult<FullStackPackage>.Failed(
-                $"Failed to parse LLM response as FullStackPackage: {ex.Message}. Response was: {response.Content[..Math.Min(200, response.Content.Length)]}");
+                $"Failed to parse LLM response as infrastructure output: {ex.Message}. Response was: {response.Content[..Math.Min(200, response.Content.Length)]}");
         }
     }
+
+    private sealed record InfraLlmResponse(
+        GeneratedFile[] InfraFiles,
+        string DockerComposeOverview);
 }

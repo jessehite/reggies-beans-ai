@@ -4,4 +4,5 @@ public sealed record GeneratedFrontendPackage(
     GeneratedFile[] BackendFiles,
     GeneratedFile[] FrontendFiles,
     string BackendStructure,
-    string FrontendStructure);
+    string FrontendStructure,
+    InfraManifest InfraManifest);
