@@ -213,12 +213,18 @@ async function showRun(runId) {
   if (!run) { alert('Run not found'); return; }
 
   renderRun(run);
-  connectSse(runId);
+
+  // Only open SSE for active runs — completed/failed runs have no more events
+  const active = ['created', 'running', 'waitingforinput'];
+  if (active.includes(run.status?.toLowerCase())) {
+    connectSse(runId);
+  }
 }
 
 function renderRun(run) {
   const app = document.getElementById('app');
-  const isLive = run.status === 'Running' || run.status === 'WaitingForInput' || run.status === 'Created';
+  const s = run.status?.toLowerCase();
+  const isLive = s === 'running' || s === 'waitingforinput' || s === 'created';
   const liveIndicator = isLive ? '<span class="live-dot"></span>' : '';
 
   document.getElementById('header-status').innerHTML =
@@ -227,9 +233,9 @@ function renderRun(run) {
   let stagesHtml = run.stages.map((s, i) => renderStageRow(s, i, run)).join('');
 
   let actionHtml = '';
-  if (run.status === 'WaitingForInput') {
+  if (s === 'waitingforinput') {
     actionHtml = renderActionPanel(run);
-  } else if (run.status === 'Failed') {
+  } else if (s === 'failed') {
     actionHtml = `
       <div class="action-panel">
         <h3>Pipeline Failed</h3>
@@ -239,7 +245,7 @@ function renderRun(run) {
         </p>
         <button class="btn btn-warning" onclick="retryRun('${run.runId}')">Retry from Failed Stage</button>
       </div>`;
-  } else if (run.status === 'Completed') {
+  } else if (s === 'completed') {
     actionHtml = `
       <div class="action-panel" style="border-color:#065f46;background:#061a12;">
         <h3 style="color:#34d399;">Pipeline Complete</h3>
@@ -262,7 +268,7 @@ function renderStageRow(stage, index, run) {
   const icon = stageIcon(stage.status, isPausedHere);
   const duration = stage.startedAt && stage.completedAt
     ? `${((new Date(stage.completedAt) - new Date(stage.startedAt)) / 1000).toFixed(1)}s`
-    : stage.startedAt && stage.status === 'Running'
+    : stage.startedAt && stage.status?.toLowerCase() === 'running'
     ? `<span class="spinner"></span> running`
     : '';
 
