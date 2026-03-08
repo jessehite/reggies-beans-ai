@@ -76,7 +76,7 @@ public sealed class TrendDiscoveryHandler : StageHandler<DiscoveryPrompt, Discov
         var request = new LlmRequest(
             SystemPrompt: SystemPrompt,
             UserPrompt: userPrompt,
-            Model: "gemini-3.1-pro");
+            Model: "gemini-3.1-pro-preview");
 
         LlmResponse response;
         try

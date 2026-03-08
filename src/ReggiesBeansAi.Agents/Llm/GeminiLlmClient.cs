@@ -17,7 +17,7 @@ public sealed class GeminiLlmClient : ILlmClient
     private readonly string _apiKey;
     private readonly string _model;
 
-    public GeminiLlmClient(HttpClient httpClient, string apiKey, string model = "gemini-2.5-flash")
+    public GeminiLlmClient(HttpClient httpClient, string apiKey, string model = "gemini-3.1-pro-preview")
     {
         _httpClient = httpClient;
         _apiKey = apiKey;
