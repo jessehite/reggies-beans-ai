@@ -341,17 +341,18 @@ function renderActionPanel(run) {
 
 function renderOpportunitySelectionPanel(run, inputJson) {
   let opportunities = [];
-  let trends = [];
   try {
     const parsed = JSON.parse(inputJson);
-    opportunities = parsed.opportunityProfiles ?? [];
-    trends = parsed.trends ?? [];
+    // DiscoveredOpportunities(TrendSignal[] Trends, OpportunityProfile[] Opportunities)
+    // OpportunityProfile(Domain, TargetAudience, SuggestedThemes[], Rationale, SupportingTrends[])
+    opportunities = parsed.opportunities ?? [];
   } catch {}
 
   const cards = opportunities.map((o, i) => `
     <div class="opportunity-card" id="opp-${i}" onclick="selectOpportunity(${i})">
-      <h4>${escHtml(o.title ?? o.productArea ?? `Option ${i+1}`)}</h4>
-      <p>${escHtml(o.description ?? o.coreProblem ?? '')}</p>
+      <h4>${escHtml(o.domain ?? `Option ${i+1}`)}</h4>
+      <p><strong>${escHtml(o.targetAudience ?? '')}</strong></p>
+      <p style="margin-top:4px">${escHtml(o.rationale ?? '')}</p>
     </div>`).join('');
 
   return `
@@ -393,7 +394,7 @@ async function submitOpportunitySelection(runId) {
   const inputJson = run.stages[run.currentStageIndex].inputJson ?? '{}';
   let input;
   try { input = JSON.parse(inputJson); } catch { input = {}; }
-  const opportunities = input.opportunityProfiles ?? [];
+  const opportunities = input.opportunities ?? [];
 
   let domain = document.getElementById('sel-domain').value.trim();
   let audience = document.getElementById('sel-audience').value.trim();
@@ -401,20 +402,21 @@ async function submitOpportunitySelection(runId) {
   let themes = themesRaw ? themesRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   // If user selected a card, prefill from it
+  // OpportunityProfile(Domain, TargetAudience, SuggestedThemes[], Rationale, SupportingTrends[])
   if (selectedOpportunityIndex !== null && opportunities[selectedOpportunityIndex]) {
     const opp = opportunities[selectedOpportunityIndex];
-    if (!domain) domain = opp.productArea ?? opp.title ?? '';
+    if (!domain) domain = opp.domain ?? '';
     if (!audience) audience = opp.targetAudience ?? '';
-    if (themes.length === 0) themes = opp.themes ?? opp.keyThemes ?? [];
+    if (themes.length === 0) themes = opp.suggestedThemes ?? [];
   }
 
   if (!domain) { alert('Please select an opportunity or enter a domain.'); return; }
 
-  // Construct IdeationInput JSON (matching the contract)
+  // Construct IdeationInput JSON — must match: IdeationInput(Domain, TargetAudience, SeedThemes[], RejectedIdeas[])
   const ideationInput = {
-    targetDomain: domain,
+    domain,
     targetAudience: audience,
-    keyThemes: themes,
+    seedThemes: themes,
     rejectedIdeas: []
   };
 
@@ -499,93 +501,124 @@ function toggleJson(id) {
 }
 
 // ── Stage summaries ───────────────────────────────────────────────────────
+// Field names match C# records serialized with JsonNamingPolicy.CamelCase
 function getStageSummary(stageId, outputJsonStr) {
   try {
     const o = JSON.parse(outputJsonStr);
     switch (stageId) {
       case 'trend-discovery': {
+        // DiscoveredOpportunities(TrendSignal[] Trends, OpportunityProfile[] Opportunities)
         const trends = o.trends ?? [];
-        const opps = o.opportunityProfiles ?? [];
-        return `Found <strong>${trends.length}</strong> trends · <strong>${opps.length}</strong> opportunity profiles`;
+        const opps = o.opportunities ?? [];
+        const oppList = opps.slice(0, 3).map(p => `• <strong>${escHtml(p.domain ?? '?')}</strong> — ${escHtml(p.targetAudience ?? '')}`).join('<br>');
+        return `<strong>${trends.length}</strong> trends · <strong>${opps.length}</strong> opportunities<br>${oppList}`;
       }
       case 'opportunity-selection': {
-        return `Domain: <strong>${escHtml(o.targetDomain ?? '—')}</strong> · Audience: <strong>${escHtml(o.targetAudience ?? '—')}</strong>`;
+        // IdeationInput(Domain, TargetAudience, SeedThemes[], RejectedIdeas[])
+        const themes = (o.seedThemes ?? []).join(', ');
+        return `Domain: <strong>${escHtml(o.domain ?? '—')}</strong> · Audience: <strong>${escHtml(o.targetAudience ?? '—')}</strong>${themes ? `<br>Themes: ${escHtml(themes)}` : ''}`;
       }
       case 'idea-generation': {
+        // IdeaBatch(ProductIdea[] Ideas)  ProductIdea(Title, Description, TargetPersona, ValueProposition, Tags[])
         const ideas = o.ideas ?? [];
-        return ideas.slice(0, 3).map(i => `• ${escHtml(i.title ?? i.name ?? JSON.stringify(i))}`).join('<br>') +
-          (ideas.length > 3 ? `<br><span style="color:#666">+ ${ideas.length - 3} more</span>` : '');
+        return ideas.slice(0, 4).map(i => `• <strong>${escHtml(i.title ?? '?')}</strong> — ${escHtml(i.valueProposition ?? i.description ?? '')}`).join('<br>') +
+          (ideas.length > 4 ? `<br><span style="color:#666">+ ${ideas.length - 4} more</span>` : '');
       }
       case 'idea-evaluation': {
-        const ideas = o.rankedIdeas ?? o.evaluatedIdeas ?? [];
+        // EvaluatedIdeas(ScoredIdea[] Ideas)  ScoredIdea(Title, CompositeScore, Rank, ...)
+        const ideas = (o.ideas ?? []).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
         return ideas.slice(0, 3).map(i =>
-          `• <strong>${escHtml(i.title ?? i.name ?? '?')}</strong> — score: ${i.totalScore ?? i.score ?? '?'}`
+          `• <strong>${escHtml(i.title ?? '?')}</strong> — composite score: ${i.compositeScore ?? '?'}`
         ).join('<br>');
       }
       case 'market-analysis': {
-        const size = o.marketSize ?? o.estimatedMarketSize ?? '?';
-        const comp = o.competitiveLandscape ?? o.competitorCount ?? '?';
-        return `Market size: <strong>${escHtml(String(size))}</strong> · Competitive landscape: ${escHtml(String(comp))}`;
+        // MarketAnalysisReport(IdeaMarketAnalysis[] Analyses)
+        // IdeaMarketAnalysis(IdeaTitle, TamEstimate, SamEstimate, SomEstimate, Competitors[], MarketGaps[], RiskFactors[], Recommendation, ConfidenceLevel)
+        const analyses = o.analyses ?? [];
+        return analyses.slice(0, 3).map(a =>
+          `• <strong>${escHtml(a.ideaTitle ?? '?')}</strong> — TAM: ${escHtml(a.tamEstimate ?? '?')} · ${escHtml(a.recommendation ?? '')}`
+        ).join('<br>');
       }
       case 'tech-feasibility': {
-        const score = o.feasibilityScore ?? o.score ?? '?';
-        const risks = (o.risks ?? o.technicalRisks ?? []).slice(0, 2).map(r => escHtml(r.title ?? r.risk ?? String(r))).join(', ');
-        return `Feasibility score: <strong>${score}</strong>${risks ? ` · Risks: ${risks}` : ''}`;
+        // TechFeasibilityReport(IdeaTechAssessment[] Assessments)
+        // IdeaTechAssessment(IdeaTitle, EstimatedEffort, ComplexityRating, TechStackRecommendations[], KeyRisks[], ...)
+        const assessments = o.assessments ?? [];
+        return assessments.slice(0, 3).map(a =>
+          `• <strong>${escHtml(a.ideaTitle ?? '?')}</strong> — effort: ${escHtml(a.estimatedEffort ?? '?')} · complexity: ${a.complexityRating ?? '?'}/10`
+        ).join('<br>');
       }
       case 'go-no-go': {
-        const dec = o.decision ?? '?';
-        const conf = o.confidence ?? o.confidenceLevel ?? '';
-        const color = dec.toLowerCase() === 'go' ? '#34d399' : '#f87171';
-        return `Decision: <strong style="color:${color}">${escHtml(String(dec).toUpperCase())}</strong>${conf ? ` · Confidence: ${escHtml(String(conf))}` : ''}`;
+        // GoNoGoDecision(IdeaDecision[] Decisions, ExecutiveSummary)
+        // IdeaDecision(IdeaTitle, Recommendation, CompositeScore, KeyAssumptions[], Rationale)
+        const decisions = o.decisions ?? [];
+        const rows = decisions.slice(0, 3).map(d => {
+          const rec = d.recommendation ?? '?';
+          const color = rec.toLowerCase() === 'go' ? '#34d399' : '#f87171';
+          return `• <strong>${escHtml(d.ideaTitle ?? '?')}</strong>: <strong style="color:${color}">${escHtml(rec.toUpperCase())}</strong>`;
+        }).join('<br>');
+        return rows + (o.executiveSummary ? `<br><em style="color:#888">${escHtml(o.executiveSummary.slice(0, 120))}…</em>` : '');
       }
       case 'product-planning': {
-        const features = o.mvpFeatures ?? o.coreFeatures ?? [];
-        return `<strong>${escHtml(o.productName ?? o.vision?.productName ?? 'Product')}</strong> · ${features.length} MVP features`;
+        // ProductRequirementsDocument — check actual contract
+        const name = o.productName ?? o.productVision ?? o.name ?? 'Product';
+        const features = o.mvpFeatures ?? o.coreFeatures ?? o.features ?? [];
+        return `<strong>${escHtml(name)}</strong> · ${features.length} MVP features`;
       }
       case 'architecture-design': {
-        const comps = o.components ?? o.services ?? [];
-        return `<strong>${o.architectureStyle ?? o.pattern ?? 'Architecture'}</strong> · ${comps.length} components`;
+        const style = o.architectureStyle ?? o.pattern ?? o.type ?? '';
+        const comps = o.components ?? o.services ?? o.layers ?? [];
+        return `${style ? `<strong>${escHtml(style)}</strong> · ` : ''}<strong>${comps.length}</strong> components`;
       }
       case 'backlog-generation': {
+        // ProductBacklog(Epic[] Epics, SprintPlan[] Sprints)
+        // SprintPlan(SprintNumber, StoryTitles[], TotalPoints)
+        const epics = o.epics ?? [];
         const sprints = o.sprints ?? [];
-        const stories = sprints.reduce((n, s) => n + (s.userStories ?? s.stories ?? []).length, 0);
-        return `<strong>${sprints.length}</strong> sprints · <strong>${stories}</strong> user stories`;
+        const totalPoints = sprints.reduce((n, s) => n + (s.totalPoints ?? 0), 0);
+        return `<strong>${epics.length}</strong> epics · <strong>${sprints.length}</strong> sprints · <strong>${totalPoints}</strong> total points`;
       }
       case 'code-generation': {
-        const files = o.generatedFiles ?? [];
+        // GeneratedCodePackage(GeneratedFile[] GeneratedFiles, ...)
+        const files = o.generatedFiles ?? o.files ?? [];
         return `<strong>${files.length}</strong> files generated`;
       }
       case 'frontend-generation': {
-        const files = (o.generatedFiles ?? o.frontendFiles ?? []).length;
+        const files = (o.generatedFiles ?? o.frontendFiles ?? o.files ?? []).length;
         return `<strong>${files}</strong> frontend files generated`;
       }
       case 'full-stack-review':
-        return 'Full-stack review passed.';
+        return 'Full-stack review passed — continuing to automated testing.';
       case 'automated-testing': {
-        const pass = o.passedTests ?? o.passed ?? '?';
-        const fail = o.failedTests ?? o.failed ?? '?';
-        const cov = o.coverage ?? o.codeCoverage ?? '';
-        return `Passed: <strong style="color:#34d399">${pass}</strong> · Failed: <strong style="color:#f87171">${fail}</strong>${cov ? ` · Coverage: ${cov}` : ''}`;
+        // TestResults(TestFileResult[] Files, CoverageReport, IdentifiedIssues[], QualityAssessment)
+        // TestFileResult(FilePath, Content, PassCount, FailCount, FailureMessages[])
+        const files = o.files ?? [];
+        const pass = files.reduce((n, f) => n + (f.passCount ?? 0), 0);
+        const fail = files.reduce((n, f) => n + (f.failCount ?? 0), 0);
+        const issues = (o.identifiedIssues ?? []).length;
+        return `Passed: <strong style="color:#34d399">${pass}</strong> · Failed: <strong style="color:#f87171">${fail}</strong>${issues ? ` · ${issues} issues identified` : ''}`
+          + (o.qualityAssessment ? `<br><em style="color:#888">${escHtml(o.qualityAssessment.slice(0, 120))}</em>` : '');
       }
       case 'code-review': {
         const rating = o.overallRating ?? o.rating ?? '?';
-        const issues = (o.issues ?? o.findings ?? []).length;
-        return `Rating: <strong>${escHtml(String(rating))}</strong> · ${issues} issues found`;
+        const issues = (o.issues ?? o.findings ?? o.comments ?? []).length;
+        return `Rating: <strong>${escHtml(String(rating))}</strong> · ${issues} review items`;
       }
       case 'deployment-prep': {
-        const files = (o.deploymentFiles ?? o.files ?? []).length;
-        return `<strong>${files}</strong> deployment files prepared`;
+        const files = (o.deploymentFiles ?? o.files ?? o.artifacts ?? []).length;
+        return `<strong>${files}</strong> deployment artifacts prepared`;
       }
       case 'human-review': {
+        // HumanApprovalDecision(Decision, Feedback?, RevisitStep?)
         const dec = o.decision ?? '?';
         const color = dec.toLowerCase() === 'approved' ? '#34d399' : '#f87171';
-        return `Decision: <strong style="color:${color}">${escHtml(dec)}</strong>`;
+        const fb = o.feedback ? `<br><em style="color:#888">${escHtml(o.feedback)}</em>` : '';
+        return `Decision: <strong style="color:${color}">${escHtml(dec)}</strong>${fb}`;
       }
       default:
         return `<span style="color:#666">Completed</span>`;
     }
-  } catch {
-    return '<span style="color:#666">Completed</span>';
+  } catch (e) {
+    return `<span style="color:#666">Completed</span>`;
   }
 }
 
