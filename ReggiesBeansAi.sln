@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReggiesBeansAi.Cli", "src\R
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReggiesBeansAi.Orchestrator.Tests", "tests\ReggiesBeansAi.Orchestrator.Tests\ReggiesBeansAi.Orchestrator.Tests.csproj", "{5F4BD934-941F-44CD-891A-AC1ABB854C30}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReggiesBeansAi.Web", "src\ReggiesBeansAi.Web\ReggiesBeansAi.Web.csproj", "{05088ACD-3FD9-4016-8698-D5420E0DE4CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +73,18 @@ Global
 		{5F4BD934-941F-44CD-891A-AC1ABB854C30}.Release|x64.Build.0 = Release|Any CPU
 		{5F4BD934-941F-44CD-891A-AC1ABB854C30}.Release|x86.ActiveCfg = Release|Any CPU
 		{5F4BD934-941F-44CD-891A-AC1ABB854C30}.Release|x86.Build.0 = Release|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Debug|x64.Build.0 = Debug|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Debug|x86.Build.0 = Debug|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Release|x64.ActiveCfg = Release|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Release|x64.Build.0 = Release|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Release|x86.ActiveCfg = Release|Any CPU
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -80,5 +94,6 @@ Global
 		{68848AF1-1C16-415F-8823-F81A468CE3A8} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{DED11DE1-B04A-4938-A35B-D211D296262D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{5F4BD934-941F-44CD-891A-AC1ABB854C30} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{05088ACD-3FD9-4016-8698-D5420E0DE4CE} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

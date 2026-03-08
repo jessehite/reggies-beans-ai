@@ -10,15 +10,24 @@ public sealed class WorkflowEngine : IWorkflowEngine
     private readonly IRunStore _runStore;
     private readonly IReadOnlyDictionary<string, IStageHandler> _handlers;
     private readonly ILogger<WorkflowEngine> _logger;
+    private readonly IWorkflowObserver? _observer;
+
+    /// <summary>
+    /// When true, the engine pauses after every stage completes (not just human-gate stages).
+    /// The next stage's input is stored in its InputJson; call ResumeAsync with that value to continue.
+    /// </summary>
+    public bool PauseAfterEveryStage { get; set; } = false;
 
     public WorkflowEngine(
         IRunStore runStore,
         IReadOnlyDictionary<string, IStageHandler> handlers,
-        ILogger<WorkflowEngine> logger)
+        ILogger<WorkflowEngine> logger,
+        IWorkflowObserver? observer = null)
     {
         _runStore = runStore;
         _handlers = handlers;
         _logger = logger;
+        _observer = observer;
     }
 
     public async Task<WorkflowRun> StartAsync(
@@ -145,6 +154,10 @@ public sealed class WorkflowEngine : IWorkflowEngine
                     run.RunId, stageDef.Id);
 
                 await _runStore.SaveAsync(run, cancellationToken);
+
+                if (_observer is not null)
+                    await _observer.OnRunPaused(run, stageExec, cancellationToken);
+
                 return run;
             }
 
@@ -165,6 +178,9 @@ public sealed class WorkflowEngine : IWorkflowEngine
             stageExec.Status = StageStatus.Running;
             stageExec.StartedAt = DateTimeOffset.UtcNow;
             await _runStore.SaveAsync(run, cancellationToken);
+
+            if (_observer is not null)
+                await _observer.OnStageStarting(run, stageDef, cancellationToken);
 
             StageHandlerResult? result = null;
 
@@ -202,6 +218,28 @@ public sealed class WorkflowEngine : IWorkflowEngine
                 stageExec.CompletedAt = DateTimeOffset.UtcNow;
                 currentInputJson = result.OutputJson!;
                 await _runStore.SaveAsync(run, cancellationToken);
+
+                if (_observer is not null)
+                    await _observer.OnStageCompleted(run, stageExec, cancellationToken);
+
+                // Pause after every stage for review (if enabled), except after the last stage
+                if (PauseAfterEveryStage && i < workflow.Stages.Count - 1)
+                {
+                    run.CurrentStageIndex = i + 1;
+                    run.Stages[i + 1].InputJson = currentInputJson;
+                    run.Status = WorkflowStatus.WaitingForInput;
+
+                    _logger.LogInformation(
+                        "Workflow run {RunId} paused after stage {StageId} for review",
+                        run.RunId, stageDef.Id);
+
+                    await _runStore.SaveAsync(run, cancellationToken);
+
+                    if (_observer is not null)
+                        await _observer.OnRunPaused(run, stageExec, cancellationToken);
+
+                    return run;
+                }
             }
             else
             {
@@ -218,8 +256,18 @@ public sealed class WorkflowEngine : IWorkflowEngine
                     run.RunId, stageDef.Id);
 
                 await _runStore.SaveAsync(run, cancellationToken);
+
+                if (_observer is not null)
+                {
+                    await _observer.OnStageFailed(run, stageExec, cancellationToken);
+                    await _observer.OnRunFailed(run, stageExec, cancellationToken);
+                }
+
                 return run;
             }
+
+            // After first resume iteration, subsequent stages are not "resuming"
+            isResuming = false;
         }
 
         run.Status = WorkflowStatus.Completed;
@@ -228,6 +276,10 @@ public sealed class WorkflowEngine : IWorkflowEngine
         _logger.LogInformation("Workflow run {RunId} completed", run.RunId);
 
         await _runStore.SaveAsync(run, cancellationToken);
+
+        if (_observer is not null)
+            await _observer.OnRunCompleted(run, cancellationToken);
+
         return run;
     }
 
