@@ -78,9 +78,9 @@ header span { font-size: 13px; color: #666; }
 
 /* Opportunity cards */
 .opportunity-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; }
-.opportunity-card { background: #111; border: 2px solid #2a2a2a; border-radius: 6px; padding: 12px; cursor: pointer; transition: border-color 0.15s; }
+.opportunity-card { background: #111; border: 2px solid #2a2a2a; border-radius: 6px; padding: 12px; cursor: pointer; transition: border-color 0.15s; user-select: none; }
 .opportunity-card:hover { border-color: #555; }
-.opportunity-card.selected { border-color: #3b82f6; }
+.opportunity-card.selected { border-color: #3b82f6; background: #1a2744; box-shadow: 0 0 0 2px #3b82f6; }
 .opportunity-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .opportunity-card p { font-size: 12px; color: #888; line-height: 1.4; }
 
@@ -258,12 +258,16 @@ function renderRun(run) {
     <div style="font-family:monospace;font-size:12px;color:#555;margin-bottom:8px;">${run.runId}</div>
     <div style="font-size:13px;color:#888;margin-bottom:4px;">Started ${fmtDate(run.createdAt)}</div>
     <div class="pipeline">${stagesHtml}</div>
-    ${actionHtml}
+    ${actionHtml ? `<div id="action-panel-anchor">${actionHtml}</div>` : ''}
   `;
+  if (actionHtml && s === 'waitingforinput') {
+    const anchor = document.getElementById('action-panel-anchor');
+    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 function renderStageRow(stage, index, run) {
-  const isPausedHere = run.status === 'WaitingForInput' && run.currentStageIndex === index;
+  const isPausedHere = run.status?.toLowerCase() === 'waitingforinput' && run.currentStageIndex === index;
   const statusClass = isPausedHere ? 'stage-waitingforinput' : `stage-${stage.status.toLowerCase()}`;
   const icon = stageIcon(stage.status, isPausedHere);
   const duration = stage.startedAt && stage.completedAt
