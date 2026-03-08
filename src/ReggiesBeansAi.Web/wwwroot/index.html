@@ -297,9 +297,13 @@ function renderStageRow(stage, index, run) {
   let summaryHtml = '';
   if (stage.status === 'Completed' && stage.outputJson) {
     const summary = getStageSummary(stage.stageId, stage.outputJson);
+    const detailId = `detail-${index}`;
     const jsonId = `json-${index}`;
+    const detail = getStageDetail(stage.stageId, stage.outputJson);
     summaryHtml = `
       <div class="stage-summary">${summary}</div>
+      <span class="detail-collapse-toggle" onclick="toggleDetailSection('${detailId}', this)">▶ View details</span>
+      <div id="${detailId}" class="detail-collapsed" style="margin-top:12px;">${detail}</div>
       <span class="json-toggle" onclick="toggleJson('${jsonId}')">View raw JSON</span>
       <pre class="json-block" id="${jsonId}">${escHtml(fmtJson(stage.outputJson))}</pre>`;
   } else if (stage.status === 'Failed' && stage.error) {
