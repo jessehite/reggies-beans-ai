@@ -61,6 +61,7 @@ public sealed class JsonFileRunStore : IRunStore
         await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(fs, System.Text.Encoding.UTF8);
         var json = await reader.ReadToEndAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(json)) return null;
         return JsonSerializer.Deserialize<WorkflowRun>(json, JsonOptions);
     }
 
