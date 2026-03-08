@@ -295,7 +295,7 @@ function renderStageRow(stage, index, run) {
   const meta = [duration, attempts ? attempts.trim() : ''].filter(Boolean).join(' ');
 
   let summaryHtml = '';
-  if (stage.status === 'Completed' && stage.outputJson) {
+  if (stage.status?.toLowerCase() === 'completed' && stage.outputJson) {
     const summary = getStageSummary(stage.stageId, stage.outputJson);
     const detailId = `detail-${index}`;
     const jsonId = `json-${index}`;
@@ -306,11 +306,11 @@ function renderStageRow(stage, index, run) {
       <div id="${detailId}" class="detail-collapsed" style="margin-top:12px;">${detail}</div>
       <span class="json-toggle" onclick="toggleJson('${jsonId}')">View raw JSON</span>
       <pre class="json-block" id="${jsonId}">${escHtml(fmtJson(stage.outputJson))}</pre>`;
-  } else if (stage.status === 'Failed' && stage.error) {
+  } else if (stage.status?.toLowerCase() === 'failed' && stage.error) {
     summaryHtml = `<div class="stage-error">${escHtml(stage.error)}</div>`;
   } else if (isPausedHere) {
     summaryHtml = `<div class="stage-summary" style="color:#fbbf24;">Paused — awaiting your input below.</div>`;
-  } else if (stage.status === 'Running') {
+  } else if (stage.status?.toLowerCase() === 'running') {
     summaryHtml = `<div class="stage-summary" style="color:#60a5fa;">Running… checking in via SSE.</div>`;
   }
 
